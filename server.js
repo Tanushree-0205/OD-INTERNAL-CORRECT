@@ -20,10 +20,10 @@ const DB_FILE = process.env.VERCEL
 let db;
 
 async function initDB() {
-  const SQL = await initSqlJs({
-    // In Vercel serverless, local .wasm lookup fails — load from CDN instead
-    locateFile: file => `https://sql.js.org/dist/${file}`
-  });
+  const wasmBinary = fs.readFileSync(
+    require.resolve('sql.js/dist/sql-wasm.wasm')
+  );
+  const SQL = await initSqlJs({ wasmBinary });
 
   if (fs.existsSync(DB_FILE)) {
     const fileBuffer = fs.readFileSync(DB_FILE);
