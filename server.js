@@ -10,8 +10,11 @@ const {
 } = require('docx');
 
 const app  = express();
-const PORT = 3000;
-const DB_FILE = path.join(__dirname, 'od_records.db');
+const PORT = process.env.PORT || 3000;
+// Vercel's filesystem is read-only except /tmp
+const DB_FILE = process.env.VERCEL
+  ? '/tmp/od_records.db'
+  : path.join(__dirname, 'od_records.db');
 
 // ─── sql.js setup ──────────────────────────────────────────────────────────────
 let db;
@@ -485,11 +488,17 @@ app.post('/api/download-combined', async (req, res) => {
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
 initDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`\n✅  OD Letter Processing System`);
-    console.log(`🌐  http://localhost:${PORT}\n`);
-  });
+  if (!process.env.VERCEL) {
+    // Local dev: start HTTP server
+    app.listen(PORT, () => {
+      console.log(`\n✅  OD Letter Processing System`);
+      console.log(`🌐  http://localhost:${PORT}\n`);
+    });
+  }
 }).catch(err => {
   console.error('Failed to initialise database:', err);
-  process.exit(1);
+  if (!process.env.VERCEL) process.exit(1);
 });
+
+// Export for Vercel serverless runtime
+module.exports = app;
