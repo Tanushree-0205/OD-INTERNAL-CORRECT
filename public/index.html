@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OD Letter Processing System — Vel Tech</title>
+<meta name="description" content="On Duty (OD) letter management and generation system for Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset & Variables ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d0f1a;
+  --bg2:       #131629;
+  --bg3:       #1a1e35;
+  --card:      rgba(26,30,53,0.85);
+  --border:    rgba(139,92,246,0.2);
+  --border2:   rgba(139,92,246,0.4);
+  --purple:    #8b5cf6;
+  --purple2:   #7c3aed;
+  --violet:    #a78bfa;
+  --pink:      #ec4899;
+  --green:     #10b981;
+  --yellow:    #f59e0b;
+  --red:       #ef4444;
+  --text:      #e2e8f0;
+  --text2:     #94a3b8;
+  --text3:     #64748b;
+  --radius:    12px;
+  --radius2:   8px;
+  --shadow:    0 8px 32px rgba(0,0,0,0.4);
+  --glow:      0 0 20px rgba(139,92,246,0.25);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Background mesh ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(139,92,246,0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(236,72,153,0.08) 0%, transparent 50%),
+    var(--bg);
+  pointer-events: none;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: 240px;
+  background: rgba(13,15,26,0.95);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  z-index: 100;
+  backdrop-filter: blur(20px);
+}
+
+.sidebar-brand {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-brand .logo {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 4px;
+}
+.sidebar-brand .logo-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+  box-shadow: var(--glow);
+}
+.sidebar-brand .logo-text { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.sidebar-brand .logo-sub  { font-size: 10px; color: var(--text3); margin-top: 4px; line-height: 1.4; }
+
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 1px;
+  color: var(--text3); text-transform: uppercase;
+  padding: 8px 8px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius2);
+  cursor: pointer; font-size: 13.5px; font-weight: 500;
+  color: var(--text2); transition: all 0.2s;
+  margin-bottom: 2px; user-select: none;
+}
+.nav-item:hover { background: rgba(139,92,246,0.12); color: var(--violet); }
+.nav-item.active { background: rgba(139,92,246,0.2); color: var(--violet);
+  box-shadow: inset 3px 0 0 var(--purple); }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-item .badge {
+  margin-left: auto; background: var(--purple);
+  color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 10px; padding: 1px 7px; min-width: 20px; text-align: center;
+}
+
+.sidebar-footer {
+  padding: 12px; border-top: 1px solid var(--border);
+}
+.sidebar-footer .version {
+  font-size: 10px; color: var(--text3); text-align: center;
+}
+
+/* ── Main content ── */
+.main { margin-left: 240px; min-height: 100vh; }
+
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(13,15,26,0.9); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px;
+}
+.topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-clock {
+  font-size: 12px; color: var(--text2);
+  background: var(--bg3); padding: 4px 12px;
+  border-radius: 20px; border: 1px solid var(--border);
+}
+
+.content { padding: 28px; }
+
+/* ── Page panels ── */
+.page { display: none; }
+.page.active { display: block; animation: fadeUp 0.3s ease; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Section heading ── */
+.section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.section-head h2 {
+  font-size: 22px; font-weight: 700;
+  background: linear-gradient(90deg, var(--text), var(--violet));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.section-head p { font-size: 13px; color: var(--text3); margin-top: 2px; }
+
+/* ── Stat cards ── */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  backdrop-filter: blur(16px);
+  transition: all 0.25s;
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--gradient, linear-gradient(90deg, var(--purple), var(--pink)));
+}
+.stat-card:hover { border-color: var(--border2); box-shadow: var(--glow); transform: translateY(-2px); }
+.stat-card .stat-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; margin-bottom: 12px;
+}
+.stat-card .stat-val {
+  font-size: 30px; font-weight: 800; line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-card .stat-label { font-size: 12px; color: var(--text2); font-weight: 500; }
+
+/* ── Card ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 15px; font-weight: 600; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text);
+}
+.card-title .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  flex-shrink: 0;
+}
+
+/* ── Form ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-full { grid-column: 1 / -1; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label {
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.field input, .field select, .field textarea {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+  width: 100%;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--purple);
+  background: rgba(139,92,246,0.08);
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+}
+.field textarea { resize: vertical; min-height: 80px; }
+.field select option { background: var(--bg2); color: var(--text); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: var(--radius2);
+  font-size: 13.5px; font-weight: 600;
+  cursor: pointer; border: none; outline: none;
+  transition: all 0.2s; font-family: 'Inter', sans-serif;
+  user-select: none; text-decoration: none;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--purple), var(--purple2));
+  color: #fff; box-shadow: 0 4px 15px rgba(139,92,246,0.3);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(139,92,246,0.45); }
+.btn-primary:active { transform: translateY(0); }
+.btn-success {
+  background: linear-gradient(135deg, #059669, var(--green));
+  color: #fff; box-shadow: 0 4px 15px rgba(16,185,129,0.25);
+}
+.btn-success:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.4); }
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626, var(--red));
+  color: #fff;
+}
+.btn-danger:hover { transform: translateY(-1px); }
+.btn-ghost {
+  background: transparent; color: var(--text2);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--text); border-color: var(--border2); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-icon { padding: 8px; }
+
+.btn-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+/* ── Table ── */
+.table-wrap {
+  overflow-x: auto; border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13.5px;
+}
+thead th {
+  background: rgba(139,92,246,0.1);
+  padding: 12px 14px; text-align: left;
+  font-weight: 600; font-size: 12px;
+  color: var(--text2); white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+tbody tr {
+  border-bottom: 1px solid rgba(139,92,246,0.08);
+  transition: background 0.15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(139,92,246,0.06); }
+tbody td { padding: 12px 14px; vertical-align: middle; }
+tbody td:first-child { border-radius: 0; }
+
+.checkbox-cell { width: 36px; }
+.checkbox-cell input[type=checkbox] {
+  width: 16px; height: 16px; cursor: pointer;
+  accent-color: var(--purple);
+}
+
+/* ── Status badge ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.badge-pending  { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+.badge-processed{ background: rgba(16,185,129,0.15); color: var(--green);  border: 1px solid rgba(16,185,129,0.3); }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ── Filter bar ── */
+.filter-bar {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 16px; align-items: center;
+}
+.filter-bar input, .filter-bar select {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 8px 12px; color: var(--text);
+  font-size: 13px; font-family: 'Inter', sans-serif;
+  outline: none; transition: border 0.2s;
+  min-width: 140px;
+}
+.filter-bar input:focus, .filter-bar select:focus { border-color: var(--purple); }
+.filter-bar select option { background: var(--bg2); }
+
+/* ── Toast ── */
+.toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 16px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13.5px; font-weight: 500; color: var(--text);
+  box-shadow: var(--shadow); backdrop-filter: blur(20px);
+  animation: slideIn 0.3s ease; min-width: 260px;
+  border-left: 3px solid var(--purple);
+}
+.toast.success { border-left-color: var(--green); }
+.toast.error   { border-left-color: var(--red); }
+.toast.warning { border-left-color: var(--yellow); }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOut {
+  to { transform: translateX(120%); opacity: 0; }
+}
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 16px; padding: 28px;
+  width: 90%; max-width: 640px; max-height: 90vh; overflow-y: auto;
+  transform: scale(0.95); transition: transform 0.25s;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal-overlay.open .modal { transform: scale(1); }
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 22px;
+}
+.modal-header h3 { font-size: 17px; font-weight: 700; color: var(--text); }
+.modal-close {
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  border-radius: 8px; width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px; color: var(--text2);
+  transition: all 0.2s;
+}
+.modal-close:hover { background: rgba(239,68,68,0.15); color: var(--red); border-color: var(--red); }
+
+/* ── Download section ── */
+.download-options {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.dl-tab {
+  padding: 8px 16px; border-radius: var(--radius2);
+  border: 1px solid var(--border); cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text2);
+  transition: all 0.2s; background: transparent;
+}
+.dl-tab.active, .dl-tab:hover {
+  background: rgba(139,92,246,0.15); color: var(--violet);
+  border-color: var(--purple);
+}
+
+/* ── Recent activity mini list ── */
+.activity-list { display: flex; flex-direction: column; gap: 10px; }
+.activity-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px; border-radius: var(--radius2);
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(139,92,246,0.1);
+  transition: background 0.2s;
+}
+.activity-item:hover { background: rgba(255,255,255,0.06); }
+.activity-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.activity-info .name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.activity-info .detail { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.activity-date { margin-left: auto; font-size: 11px; color: var(--text3); white-space: nowrap; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.5); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .sidebar { width: 200px; }
+  .main { margin-left: 200px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; }
+  .form-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .content { padding: 16px; }
+}
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center; padding: 60px 20px;
+  color: var(--text3);
+}
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* ── Progress bar ── */
+.progress-bar {
+  height: 4px; border-radius: 4px; background: rgba(139,92,246,0.15);
+  margin-top: 8px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--purple), var(--pink));
+  border-radius: 4px; transition: width 0.5s ease;
+}
+
+/* ─ Settings ─ */
+.settings-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row label { font-size: 13px; font-weight: 600; color: var(--text); min-width: 150px; }
+.settings-row input { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="logo">
+      <div class="logo-icon">🎓</div>
+      <div class="logo-text">OD System</div>
+    </div>
+    <div class="logo-sub">Vel Tech — Admin Portal</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-label">Navigation</div>
+    <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+      <span class="icon">📊</span> Dashboard
+    </div>
+    <div class="nav-item" data-page="add" onclick="navigate('add')">
+      <span class="icon">➕</span> Add OD Entry
+    </div>
+    <div class="nav-item" data-page="register" onclick="navigate('register')">
+      <span class="icon">📋</span> OD Register
+      <span class="badge" id="badge-total">0</span>
+    </div>
+    <div class="nav-item" data-page="download" onclick="navigate('download')">
+      <span class="icon">📥</span> Download Letters
+    </div>
+    <div class="nav-label" style="margin-top:8px">System</div>
+    <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+      <span class="icon">⚙️</span> Settings
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="version">v1.0 · Vel Tech OD System</div>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <div class="topbar-right">
+      <div class="topbar-clock" id="topbar-clock">—</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── Dashboard ── -->
+    <section class="page active" id="page-dashboard">
+      <div class="section-head">
+        <div>
+          <h2>Dashboard</h2>
+          <p>Overview of all OD entries and activity</p>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card" style="--gradient:linear-gradient(90deg,#8b5cf6,#a78bfa)">
+          <div class="stat-icon" style="background:rgba(139,92,246,0.2)">📄</div>
+          <div class="stat-val" id="stat-total">0</div>
+          <div class="stat-label">Total OD Entries</div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="prog-total" style="width:100%"></div></div>
+        </div>
+        <div class="stat-card" style="--gradient:linear-gradient(90deg,#f59e0b,#fbbf24)">
+          <div class="stat-icon" style="background:rgba(245,158,11,0.2)">⏳</div>
+          <div class="stat-val" id="stat-pending">0</div>
+          <div class="stat-label">Pending</div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="prog-pending" style="background:linear-gradient(90deg,#f59e0b,#fbbf24);width:0%"></div></div>
+        </div>
+        <div class="stat-card" style="--gradient:linear-gradient(90deg,#10b981,#34d399)">
+          <div class="stat-icon" style="background:rgba(16,185,129,0.2)">✅</div>
+          <div class="stat-val" id="stat-processed">0</div>
+          <div class="stat-label">Processed</div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="prog-processed" style="background:linear-gradient(90deg,#10b981,#34d399);width:0%"></div></div>
+        </div>
+        <div class="stat-card" style="--gradient:linear-gradient(90deg,#ec4899,#f472b6)">
+          <div class="stat-icon" style="background:rgba(236,72,153,0.2)">📅</div>
+          <div class="stat-val" id="stat-today">0</div>
+          <div class="stat-label">Today's ODs</div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="prog-today" style="background:linear-gradient(90deg,#ec4899,#f472b6);width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Recent OD Entries</div>
+        <div id="recent-list" class="activity-list">
+          <div class="empty-state"><div class="icon">📭</div><p>No entries yet</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Add OD Entry ── -->
+    <section class="page" id="page-add">
+      <div class="section-head">
+        <div>
+          <h2 id="add-form-title">Add OD Entry</h2>
+          <p>Fill in the student's details to create an OD record</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Student Information</div>
+        <form id="od-form" onsubmit="submitOdForm(event)">
+          <input type="hidden" id="edit-id"/>
+          <div class="form-grid cols-3">
+            <div class="field">
+              <label>Student Name *</label>
+              <input type="text" id="f-name" placeholder="e.g. Rupa Tanu" required/>
+            </div>
+            <div class="field">
+              <label>VTU ID *</label>
+              <input type="text" id="f-vtu" placeholder="e.g. 1VT22CS001" required/>
+            </div>
+            <div class="field">
+              <label>Department *</label>
+              <input type="text" id="f-dept" placeholder="e.g. Computer Science" required/>
+            </div>
+            <div class="field">
+              <label>OD Date *</label>
+              <input type="date" id="f-date" required/>
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="f-status">
+                <option value="Pending">Pending</option>
+                <option value="Processed">Processed</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Notes (Optional)</label>
+              <input type="text" id="f-notes" placeholder="Any additional info"/>
+            </div>
+            <div class="field form-full">
+              <label>Reason for OD *</label>
+              <textarea id="f-reason" placeholder="e.g. attending a national-level hackathon organized by IEEE at VIT Chennai" required></textarea>
+            </div>
+          </div>
+          <div class="btn-actions">
+            <button type="submit" class="btn btn-primary" id="submit-btn">
+              ➕ Add OD Entry
+            </button>
+            <button type="button" class="btn btn-ghost" onclick="resetForm()">
+              ↺ Reset
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ── OD Register ── -->
+    <section class="page" id="page-register">
+      <div class="section-head">
+        <div>
+          <h2>OD Register</h2>
+          <p>Day-to-day status of all OD entries</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="navigate('add')">➕ Add New</button>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="f-search" placeholder="🔍 Search name or VTU ID..." oninput="loadRegister()" style="flex:1;min-width:180px"/>
+        <input type="date" id="f-filter-date" onchange="loadRegister()"/>
+        <select id="f-filter-status" onchange="loadRegister()">
+          <option value="">All Status</option>
+          <option value="Pending">Pending</option>
+          <option value="Processed">Processed</option>
+        </select>
+        <input type="text" id="f-filter-dept" placeholder="Filter dept..." oninput="loadRegister()" style="max-width:160px"/>
+        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ Clear</button>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="checkbox-cell"><input type="checkbox" id="select-all" onchange="toggleSelectAll()"/></th>
+                <th>#</th>
+                <th>Student Name</th>
+                <th>VTU ID</th>
+                <th>Department</th>
+                <th>OD Date</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="register-body">
+              <tr><td colspan="9"><div class="empty-state"><div class="icon">📭</div><p>No records found</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-success btn-sm" onclick="bulkUpdateStatus('Processed')">✅ Mark Selected Processed</button>
+        <button class="btn btn-ghost btn-sm" onclick="bulkUpdateStatus('Pending')">⏳ Mark Selected Pending</button>
+        <button class="btn btn-danger btn-sm" onclick="bulkDelete()">🗑 Delete Selected</button>
+      </div>
+    </section>
+
+    <!-- ── Download Letters ── -->
+    <section class="page" id="page-download">
+      <div class="section-head">
+        <div>
+          <h2>Download OD Letters</h2>
+          <p>Select entries and generate DOCX letters in Times New Roman</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Letter Date</div>
+        <div class="form-grid" style="grid-template-columns:auto auto 1fr;align-items:center;gap:16px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;font-weight:500">
+            <input type="radio" name="date-mode" value="auto" checked onchange="toggleDateMode()" style="accent-color:var(--purple)"/>
+            Use today's date automatically
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;font-weight:500">
+            <input type="radio" name="date-mode" value="custom" onchange="toggleDateMode()" style="accent-color:var(--purple)"/>
+            Custom date
+          </label>
+          <input type="date" id="custom-letter-date" style="display:none;max-width:200px;
+            background:rgba(255,255,255,0.04);border:1px solid var(--border);
+            border-radius:8px;padding:8px 12px;color:var(--text);font-family:Inter,sans-serif;
+            font-size:13px;outline:none"/>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="card-title" style="margin:0"><span class="dot"></span> Select Entries to Download</div>
+          <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap">
+            <input type="text" id="dl-search" placeholder="🔍 Search..." oninput="loadDownloadTable()"
+              style="background:rgba(255,255,255,0.04);border:1px solid var(--border);
+              border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;
+              font-family:Inter,sans-serif;outline:none;min-width:160px"/>
+            <input type="date" id="dl-date-from" onchange="loadDownloadTable()" title="From date"
+              style="background:rgba(255,255,255,0.04);border:1px solid var(--border);
+              border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;
+              font-family:Inter,sans-serif;outline:none"/>
+            <input type="date" id="dl-date-to" onchange="loadDownloadTable()" title="To date"
+              style="background:rgba(255,255,255,0.04);border:1px solid var(--border);
+              border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;
+              font-family:Inter,sans-serif;outline:none"/>
+            <select id="dl-status" onchange="loadDownloadTable()"
+              style="background:rgba(255,255,255,0.04);border:1px solid var(--border);
+              border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;
+              font-family:Inter,sans-serif;outline:none">
+              <option value="">All Status</option>
+              <option value="Processed">Processed</option>
+              <option value="Pending">Pending</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap" style="border:none">
+          <table>
+            <thead>
+              <tr>
+                <th class="checkbox-cell"><input type="checkbox" id="dl-select-all" onchange="toggleDlSelectAll()"/></th>
+                <th>Student Name</th>
+                <th>VTU ID</th>
+                <th>Department</th>
+                <th>OD Date</th>
+                <th>Status</th>
+                <th>Quick Download</th>
+              </tr>
+            </thead>
+            <tbody id="dl-body">
+              <tr><td colspan="7"><div class="empty-state"><div class="icon">📭</div><p>No entries found</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="downloadSelected()">
+          📦 Individual Letters (ZIP)
+        </button>
+        <button class="btn btn-success" onclick="downloadCombined()" title="One DOCX per date with all students in a table">
+          📄 Combined Letter (with Table)
+        </button>
+        <div style="color:var(--text3);font-size:12.5px;display:flex;align-items:center;gap:6px">
+          <span id="dl-selected-count">0</span> entries selected
+          <span style="color:var(--text3)">·</span>
+          <span style="font-size:11px;color:var(--text3)" id="dl-date-hint"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Settings ── -->
+    <section class="page" id="page-settings">
+      <div class="section-head">
+        <div>
+          <h2>Settings</h2>
+          <p>Configure letter header defaults</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Letter Defaults</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+          These values are used in the "From" section of all generated OD letters.
+        </p>
+        <div class="settings-row">
+          <label>Default HOD Name</label>
+          <div class="field" style="flex:1">
+            <input type="text" id="s-hod-name" placeholder="e.g. Dr. A. Kumar"/>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label>Default HOD Dept</label>
+          <div class="field" style="flex:1">
+            <input type="text" id="s-hod-dept" placeholder="e.g. Computer Science & Engineering"/>
+          </div>
+        </div>
+        <div class="btn-actions">
+          <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ── Edit Modal ── -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>✏️ Edit OD Entry</h3>
+      <div class="modal-close" onclick="closeModal()">✕</div>
+    </div>
+    <form id="edit-form" onsubmit="submitEditForm(event)">
+      <input type="hidden" id="m-id"/>
+      <div class="form-grid cols-3">
+        <div class="field"><label>Student Name *</label><input type="text" id="m-name" required/></div>
+        <div class="field"><label>VTU ID *</label><input type="text" id="m-vtu" required/></div>
+        <div class="field"><label>Department *</label><input type="text" id="m-dept" required/></div>
+        <div class="field"><label>OD Date *</label><input type="date" id="m-date" required/></div>
+        <div class="field"><label>Status</label>
+          <select id="m-status">
+            <option value="Pending">Pending</option>
+            <option value="Processed">Processed</option>
+          </select>
+        </div>
+        <div class="field"><label>Notes</label><input type="text" id="m-notes"/></div>
+        <div class="field form-full"><label>Reason *</label><textarea id="m-reason" required></textarea></div>
+      </div>
+      <div class="btn-actions">
+        <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Toast container ── -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let currentPage = 'dashboard';
+let dlEntries = [];
+
+// ── Clock ──────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('topbar-clock').textContent =
+    now.toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric',
+      hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: true });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Set today's date as default for OD date input
+document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+
+// ── Navigation ─────────────────────────────────────────────────────────────────
+const pageTitles = {
+  dashboard: 'Dashboard',
+  add: 'Add OD Entry',
+  register: 'OD Register',
+  download: 'Download Letters',
+  settings: 'Settings'
+};
+
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  document.getElementById('page-title').textContent = pageTitles[page];
+  currentPage = page;
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'register') loadRegister();
+  if (page === 'download') loadDownloadTable();
+  if (page === 'settings') loadSettings();
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+  el.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'slideOut 0.3s ease forwards';
+    setTimeout(() => el.remove(), 300);
+  }, 3000);
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────────
+async function api(method, url, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'API error'); }
+  return r.json();
+}
+
+function formatDate(str) {
+  if (!str) return '—';
+  const d = new Date(str + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const stats = await api('GET', '/api/stats');
+    document.getElementById('stat-total').textContent     = stats.total;
+    document.getElementById('stat-pending').textContent   = stats.pending;
+    document.getElementById('stat-processed').textContent = stats.processed;
+    document.getElementById('stat-today').textContent     = stats.todayCount;
+    document.getElementById('badge-total').textContent    = stats.total;
+
+    const pct = (v) => stats.total ? Math.round(v / stats.total * 100) : 0;
+    document.getElementById('prog-pending').style.width   = pct(stats.pending)   + '%';
+    document.getElementById('prog-processed').style.width = pct(stats.processed) + '%';
+    document.getElementById('prog-today').style.width     = pct(stats.todayCount) + '%';
+
+    const entries = await api('GET', '/api/entries');
+    const recent = entries.slice(0, 6);
+    const list = document.getElementById('recent-list');
+    if (!recent.length) {
+      list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No entries yet. <a href="#" onclick="navigate(\'add\')" style="color:var(--violet)">Add one now</a>.</p></div>';
+      return;
+    }
+    list.innerHTML = recent.map(e => `
+      <div class="activity-item">
+        <div class="activity-avatar">${e.student_name[0]}</div>
+        <div class="activity-info">
+          <div class="name">${e.student_name} <span style="color:var(--text3);font-weight:400;font-size:12px">(${e.vtu_id})</span></div>
+          <div class="detail">${e.department} · ${formatDate(e.od_date)} · ${e.reason.substring(0,60)}${e.reason.length>60?'...':''}</div>
+        </div>
+        <span class="badge ${e.status === 'Processed' ? 'badge-processed' : 'badge-pending'}">
+          <span class="badge-dot"></span>${e.status}
+        </span>
+      </div>`).join('');
+  } catch (err) { toast('Failed to load dashboard: ' + err.message, 'error'); }
+}
+
+// ── Add / Edit Form ───────────────────────────────────────────────────────────
+function resetForm() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('od-form').reset();
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('add-form-title').textContent = 'Add OD Entry';
+  document.getElementById('submit-btn').textContent = '➕ Add OD Entry';
+}
+
+async function submitOdForm(e) {
+  e.preventDefault();
+  const payload = {
+    student_name: document.getElementById('f-name').value.trim(),
+    vtu_id:       document.getElementById('f-vtu').value.trim(),
+    department:   document.getElementById('f-dept').value.trim(),
+    od_date:      document.getElementById('f-date').value,
+    reason:       document.getElementById('f-reason').value.trim(),
+    status:       document.getElementById('f-status').value,
+    notes:        document.getElementById('f-notes').value.trim()
+  };
+  try {
+    await api('POST', '/api/entries', payload);
+    toast('OD entry added successfully!', 'success');
+    resetForm();
+    loadDashboard();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+// ── OD Register ───────────────────────────────────────────────────────────────
+async function loadRegister() {
+  const search = document.getElementById('f-search').value;
+  const date   = document.getElementById('f-filter-date').value;
+  const status = document.getElementById('f-filter-status').value;
+  const dept   = document.getElementById('f-filter-dept').value;
+
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (date)   params.set('date', date);
+  if (status) params.set('status', status);
+  if (dept)   params.set('dept', dept);
+
+  try {
+    const entries = await api('GET', '/api/entries?' + params);
+    document.getElementById('badge-total').textContent = entries.length;
+    const tbody = document.getElementById('register-body');
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="icon">🔍</div><p>No records found</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = entries.map((e, i) => `
+      <tr>
+        <td class="checkbox-cell"><input type="checkbox" class="row-check" value="${e.id}"/></td>
+        <td style="color:var(--text3);font-size:12px">${i+1}</td>
+        <td><strong>${e.student_name}</strong></td>
+        <td style="font-family:monospace;color:var(--violet)">${e.vtu_id}</td>
+        <td style="color:var(--text2)">${e.department}</td>
+        <td style="white-space:nowrap">${formatDate(e.od_date)}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" title="${e.reason}">${e.reason}</td>
+        <td>
+          <select class="status-sel" data-id="${e.id}" onchange="quickStatus(${e.id}, this.value)"
+            style="background:transparent;border:none;color:${e.status==='Processed'?'var(--green)':'var(--yellow)'};
+            font-weight:600;font-size:12px;cursor:pointer;font-family:Inter,sans-serif;outline:none">
+            <option value="Pending"   ${e.status==='Pending'  ?'selected':''}>⏳ Pending</option>
+            <option value="Processed" ${e.status==='Processed'?'selected':''}>✅ Processed</option>
+          </select>
+        </td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="openEditModal(${e.id})">✏️</button>
+            <button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="deleteEntry(${e.id})">🗑</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  } catch(err) { toast('Failed to load register: ' + err.message, 'error'); }
+}
+
+function clearFilters() {
+  document.getElementById('f-search').value = '';
+  document.getElementById('f-filter-date').value = '';
+  document.getElementById('f-filter-status').value = '';
+  document.getElementById('f-filter-dept').value = '';
+  loadRegister();
+}
+
+function toggleSelectAll() {
+  const checked = document.getElementById('select-all').checked;
+  document.querySelectorAll('.row-check').forEach(c => c.checked = checked);
+}
+
+function getSelectedIds() {
+  return [...document.querySelectorAll('.row-check:checked')].map(c => parseInt(c.value));
+}
+
+async function quickStatus(id, status) {
+  try {
+    const e = await api('GET', '/api/entries');
+    const entry = e.find(x => x.id === id);
+    if (!entry) return;
+    await api('PUT', '/api/entries/' + id, { ...entry, status });
+    toast(`Status updated to ${status}`, 'success');
+    loadDashboard();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function bulkUpdateStatus(status) {
+  const ids = getSelectedIds();
+  if (!ids.length) { toast('Select at least one entry', 'warning'); return; }
+  try {
+    const entries = await api('GET', '/api/entries');
+    for (const id of ids) {
+      const entry = entries.find(e => e.id === id);
+      if (entry) await api('PUT', '/api/entries/' + id, { ...entry, status });
+    }
+    toast(`${ids.length} entries marked as ${status}`, 'success');
+    loadRegister(); loadDashboard();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Delete this OD entry? This cannot be undone.')) return;
+  try {
+    await api('DELETE', '/api/entries/' + id);
+    toast('Entry deleted', 'success');
+    loadRegister(); loadDashboard();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function bulkDelete() {
+  const ids = getSelectedIds();
+  if (!ids.length) { toast('Select at least one entry', 'warning'); return; }
+  if (!confirm(`Delete ${ids.length} selected entries? This cannot be undone.`)) return;
+  try {
+    for (const id of ids) await api('DELETE', '/api/entries/' + id);
+    toast(`${ids.length} entries deleted`, 'success');
+    loadRegister(); loadDashboard();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+// ── Edit Modal ─────────────────────────────────────────────────────────────────
+async function openEditModal(id) {
+  const entries = await api('GET', '/api/entries');
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('m-id').value     = e.id;
+  document.getElementById('m-name').value   = e.student_name;
+  document.getElementById('m-vtu').value    = e.vtu_id;
+  document.getElementById('m-dept').value   = e.department;
+  document.getElementById('m-date').value   = e.od_date;
+  document.getElementById('m-reason').value = e.reason;
+  document.getElementById('m-status').value = e.status;
+  document.getElementById('m-notes').value  = e.notes || '';
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+}
+
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+async function submitEditForm(e) {
+  e.preventDefault();
+  const id = document.getElementById('m-id').value;
+  const payload = {
+    student_name: document.getElementById('m-name').value.trim(),
+    vtu_id:       document.getElementById('m-vtu').value.trim(),
+    department:   document.getElementById('m-dept').value.trim(),
+    od_date:      document.getElementById('m-date').value,
+    reason:       document.getElementById('m-reason').value.trim(),
+    status:       document.getElementById('m-status').value,
+    notes:        document.getElementById('m-notes').value.trim()
+  };
+  try {
+    await api('PUT', '/api/entries/' + id, payload);
+    toast('Entry updated!', 'success');
+    closeModal();
+    loadRegister(); loadDashboard();
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+// ── Download Letters ───────────────────────────────────────────────────────────
+function toggleDateMode() {
+  const mode = document.querySelector('input[name="date-mode"]:checked').value;
+  document.getElementById('custom-letter-date').style.display = mode === 'custom' ? '' : 'none';
+}
+
+function getLetterDate() {
+  const mode = document.querySelector('input[name="date-mode"]:checked').value;
+  if (mode === 'custom') return document.getElementById('custom-letter-date').value || null;
+  return null; // auto = server uses today
+}
+
+async function loadDownloadTable() {
+  const search  = document.getElementById('dl-search').value;
+  const dateFrom= document.getElementById('dl-date-from').value;
+  const dateTo  = document.getElementById('dl-date-to').value;
+  const status  = document.getElementById('dl-status').value;
+
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (status) params.set('status', status);
+
+  try {
+    let entries = await api('GET', '/api/entries?' + params);
+    if (dateFrom) entries = entries.filter(e => e.od_date >= dateFrom);
+    if (dateTo)   entries = entries.filter(e => e.od_date <= dateTo);
+    dlEntries = entries;
+
+    const tbody = document.getElementById('dl-body');
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="icon">📭</div><p>No entries found</p></div></td></tr>';
+      updateDlCount();
+      return;
+    }
+    tbody.innerHTML = entries.map(e => `
+      <tr>
+        <td class="checkbox-cell"><input type="checkbox" class="dl-check" value="${e.id}" onchange="updateDlCount()"/></td>
+        <td><strong>${e.student_name}</strong></td>
+        <td style="font-family:monospace;color:var(--violet)">${e.vtu_id}</td>
+        <td style="color:var(--text2)">${e.department}</td>
+        <td style="white-space:nowrap">${formatDate(e.od_date)}</td>
+        <td><span class="badge ${e.status==='Processed'?'badge-processed':'badge-pending'}">
+          <span class="badge-dot"></span>${e.status}</span></td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="downloadSingle(${e.id})">📄 Download</button>
+        </td>
+      </tr>`).join('');
+  } catch(err) { toast('Error loading entries: ' + err.message, 'error'); }
+}
+
+function toggleDlSelectAll() {
+  const checked = document.getElementById('dl-select-all').checked;
+  document.querySelectorAll('.dl-check').forEach(c => c.checked = checked);
+  updateDlCount();
+}
+
+function updateDlCount() {
+  const checked = [...document.querySelectorAll('.dl-check:checked')];
+  const count = checked.length;
+  document.getElementById('dl-selected-count').textContent = count;
+
+  // Show unique-dates hint
+  const hint = document.getElementById('dl-date-hint');
+  if (count > 0) {
+    const ids = checked.map(c => parseInt(c.value));
+    const selectedEntries = dlEntries.filter(e => ids.includes(e.id));
+    const uniqueDates = [...new Set(selectedEntries.map(e => e.od_date))];
+    hint.textContent = uniqueDates.length === 1
+      ? `(all on ${formatDate(uniqueDates[0])})`
+      : `(${uniqueDates.length} different dates)`;
+  } else {
+    hint.textContent = '';
+  }
+}
+
+async function downloadSingle(id) {
+  const letterDate = getLetterDate();
+  try {
+    const resp = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, letterDate })
+    });
+    if (!resp.ok) { toast('Download failed', 'error'); return; }
+    const blob = await resp.blob();
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const filename = (cd.match(/filename="(.+)"/) || [])[1] || 'OD_Letter.docx';
+    triggerDownload(blob, filename);
+    toast('Letter downloaded!', 'success');
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function downloadSelected() {
+  const ids = [...document.querySelectorAll('.dl-check:checked')].map(c => parseInt(c.value));
+  if (!ids.length) { toast('Select at least one entry', 'warning'); return; }
+  const letterDate = getLetterDate();
+  try {
+    toast(`Generating ${ids.length} individual letter(s)...`, 'info');
+    const resp = await fetch('/api/download-bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, letterDate })
+    });
+    if (!resp.ok) { toast('Bulk download failed', 'error'); return; }
+    const blob = await resp.blob();
+    triggerDownload(blob, 'OD_Letters.zip');
+    toast(`${ids.length} letters downloaded as ZIP!`, 'success');
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+async function downloadCombined() {
+  const ids = [...document.querySelectorAll('.dl-check:checked')].map(c => parseInt(c.value));
+  if (!ids.length) { toast('Select at least one entry', 'warning'); return; }
+  const letterDate = getLetterDate();
+
+  const selectedEntries = dlEntries.filter(e => ids.includes(e.id));
+  const uniqueDates = [...new Set(selectedEntries.map(e => e.od_date))];
+
+  try {
+    toast(`Generating combined letter${uniqueDates.length > 1 ? 's' : ''} with student table...`, 'info');
+    const resp = await fetch('/api/download-combined', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, letterDate })
+    });
+    if (!resp.ok) { toast('Combined download failed', 'error'); return; }
+    const blob = await resp.blob();
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const filename = (cd.match(/filename="(.+)"/) || [])[1] ||
+      (uniqueDates.length === 1 ? `OD_Combined_${uniqueDates[0]}.docx` : 'OD_Combined_Letters.zip');
+    triggerDownload(blob, filename);
+    toast(
+      uniqueDates.length === 1
+        ? `Combined letter for ${ids.length} students downloaded!`
+        : `Combined letters for ${uniqueDates.length} dates downloaded as ZIP!`,
+      'success'
+    );
+  } catch(err) { toast('Error: ' + err.message, 'error'); }
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const settings = await api('GET', '/api/settings');
+    document.getElementById('s-hod-name').value = settings.hod_name || '';
+    document.getElementById('s-hod-dept').value = settings.hod_dept || '';
+  } catch(err) { toast('Error loading settings', 'error'); }
+}
+
+async function saveSettings() {
+  const hodName = document.getElementById('s-hod-name').value.trim();
+  const hodDept = document.getElementById('s-hod-dept').value.trim();
+  try {
+    await api('POST', '/api/settings', { key: 'hod_name', value: hodName });
+    await api('POST', '/api/settings', { key: 'hod_dept', value: hodDept });
+    toast('Settings saved!', 'success');
+  } catch(err) { toast('Error saving settings: ' + err.message, 'error'); }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadDashboard();
+</script>
+</body>
+</html>
