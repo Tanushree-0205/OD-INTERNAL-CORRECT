@@ -116,58 +116,77 @@ app.get('/api/stats', (req, res) => {
 });
 
 // ─── DOCX Builder ──────────────────────────────────────────────────────────────
+// ─── DOCX Builder ──────────────────────────────────────────────────────────────
 function tnr(text, opts = {}) {
-  return new TextRun({ text, font: 'Times New Roman', size: 24, ...opts });
+  return new TextRun({ text: text || '', font: 'Times New Roman', size: 24, ...opts });
 }
 
-function para(children, alignment = AlignmentType.LEFT, afterSpacing = 160) {
-  return new Paragraph({ alignment, spacing: { after: afterSpacing }, children });
+function para(children, alignment = AlignmentType.LEFT, afterSpacing = 140) {
+  return new Paragraph({ alignment, spacing: { after: afterSpacing, line: 276 }, children });
 }
 
-function blank() {
-  return new Paragraph({ children: [tnr('')], spacing: { after: 120 } });
+function blank(spacing = 100) {
+  return new Paragraph({ children: [tnr('')], spacing: { after: spacing } });
 }
 
 function fmtDate(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  if (!dateStr) return '';
+  // If already formatted or text range
+  if (typeof dateStr === 'string' && (dateStr.includes(' ') || dateStr.includes('-') === false)) {
+    return dateStr;
+  }
+  try {
+    const d = new Date(dateStr + (dateStr.length === 10 ? 'T00:00:00' : ''));
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+  } catch (e) {
+    return dateStr;
+  }
 }
 
-// ─── Combined DOCX: one letter for multiple students on one date ───────────────
-function buildCombinedDocx(entries, letterDate) {
+// ─── Combined DOCX: Professional Letter for multiple students ─────────────────
+function buildCombinedDocx(entries, letterDate, meta = {}) {
   if (!entries || !entries.length) throw new Error('No entries');
 
-  const odDate        = entries[0].od_date;
-  const odDateStr     = fmtDate(odDate);
+  const odDatesList = [...new Set(entries.map(e => e.od_date))];
+  const defaultOdDateStr = odDatesList.map(d => fmtDate(d)).join(', ');
+  const odDatesStr = meta.odDates ? meta.odDates : defaultOdDateStr;
+
   const letterDateStr = letterDate
     ? fmtDate(letterDate)
     : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
-  const reasons    = [...new Set(entries.map(e => e.reason))];
-  const reasonText = reasons.join('; ');
-  const depts      = [...new Set(entries.map(e => e.department))];
-  const deptText   = depts.join(' / ');
+  const depts = [...new Set(entries.map(e => e.department))];
+  const deptText = meta.fromDept || depts.join(' / ') || 'School of Computing';
+
+  const fromName = meta.fromName || 'Head of Department / Faculty Coordinator';
+  const designation = meta.fromDesignation || 'Authorised Signatory';
+  const eventName = meta.eventName || 'the Scheduled Academic / Co-Curricular Event';
+  const eventDates = meta.eventDates ? meta.eventDates : odDatesStr;
+  const commonReason = meta.reason || [...new Set(entries.map(e => e.reason))].join('; ');
+  const toAuthority = meta.toAuthority || 'The Dean';
+  const toSchool = meta.toSchool || 'School of Computing';
 
   const thinBorder = {
-    top:    { style: BorderStyle.SINGLE, size: 1, color: '000000' },
-    bottom: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
-    left:   { style: BorderStyle.SINGLE, size: 1, color: '000000' },
-    right:  { style: BorderStyle.SINGLE, size: 1, color: '000000' }
+    top:    { style: BorderStyle.SINGLE, size: 1, color: '333333' },
+    bottom: { style: BorderStyle.SINGLE, size: 1, color: '333333' },
+    left:   { style: BorderStyle.SINGLE, size: 1, color: '333333' },
+    right:  { style: BorderStyle.SINGLE, size: 1, color: '333333' }
   };
 
-  const headers   = ['S.No', 'Student Name', 'VTU ID', 'Department', 'Reason for OD'];
-  const colWidths = [600, 2200, 1800, 2000, 3400];
+  const headers = ['S.No', 'Student Name', 'VTU ID', 'Department', 'Reason / Activity', 'OD Date(s)'];
+  const colWidths = [600, 2400, 1800, 2000, 2600, 1600];
 
   const headerRow = new TableRow({
     tableHeader: true,
     children: headers.map((h, i) =>
       new TableCell({
-        width:   { size: colWidths[i], type: WidthType.DXA },
+        width: { size: colWidths[i], type: WidthType.DXA },
         borders: thinBorder,
-        shading: { fill: 'D3D3D3', type: ShadingType.CLEAR },
+        shading: { fill: 'EAEAEA', type: ShadingType.CLEAR },
         children: [new Paragraph({
           children: [tnr(h, { bold: true })],
-          spacing: { before: 60, after: 60 }
+          spacing: { before: 80, after: 80 }
         })]
       })
     )
@@ -177,10 +196,11 @@ function buildCombinedDocx(entries, letterDate) {
     new TableRow({
       children: [
         new TableCell({ width: { size: colWidths[0], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(String(idx + 1))], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[1], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.student_name)], spacing: { before: 60, after: 60 } })] }),
+        new TableCell({ width: { size: colWidths[1], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.student_name, { bold: true })], spacing: { before: 60, after: 60 } })] }),
         new TableCell({ width: { size: colWidths[2], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.vtu_id)], spacing: { before: 60, after: 60 } })] }),
         new TableCell({ width: { size: colWidths[3], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.department)], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[4], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.reason)], spacing: { before: 60, after: 60 } })] })
+        new TableCell({ width: { size: colWidths[4], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.reason || commonReason)], spacing: { before: 60, after: 60 } })] }),
+        new TableCell({ width: { size: colWidths[5], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(fmtDate(e.od_date))], spacing: { before: 60, after: 60 } })] })
       ]
     })
   );
@@ -191,13 +211,20 @@ function buildCombinedDocx(entries, letterDate) {
   });
 
   const bodyIntro =
-    `The following ${entries.length} student${entries.length > 1 ? 's' : ''} of ` +
-    `${deptText}, Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology, ` +
-    `were engaged in ${reasonText} on ${odDateStr} and are hereby requested to be granted On Duty (OD) for the same.`;
+    `With reference to the subject cited above, we bring to your kind notice that the following ` +
+    `${entries.length} student${entries.length > 1 ? 's' : ''} of ${deptText}, ` +
+    `Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology, ` +
+    `participated in "${eventName}" scheduled from ${eventDates}. ` +
+    `The primary purpose and reason for On Duty (OD) is "${commonReason}".`;
+
+  const bodyDetails =
+    `The student${entries.length > 1 ? 's were' : ' was'} actively on duty during the period: ${odDatesStr}. ` +
+    `Due to their official representation and active participation in the event, ` +
+    `they could not attend the regularly scheduled academic classes and laboratory sessions during this duration.`;
 
   const bodyClose =
-    `We kindly request you to consider this application and issue OD letters for the ` +
-    `aforementioned students for ${odDateStr}.`;
+    `In view of the above, we kindly request your good office to grant On Duty (OD) attendance ` +
+    `for the aforementioned student${entries.length > 1 ? 's' : ''} for ${odDatesStr} and enable the appropriate attendance recording in the academic registry.`;
 
   return new Document({
     sections: [{
@@ -213,34 +240,40 @@ function buildCombinedDocx(entries, letterDate) {
       },
       children: [
         para([tnr('From,', { bold: true })]),
+        para([tnr(fromName, { bold: true })]),
+        para([tnr(designation)]),
         para([tnr(deptText)]),
         para([tnr('Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology')]),
-        blank(),
+        para([tnr('Avadi, Chennai - 600 062, Tamil Nadu')]),
+        blank(80),
         para([tnr('Date: ', { bold: true }), tnr(letterDateStr)]),
-        blank(),
+        blank(80),
         para([tnr('To,', { bold: true })]),
-        para([tnr('The Dean')]),
-        para([tnr('School of Computing')]),
+        para([tnr(toAuthority)]),
+        para([tnr(toSchool)]),
         para([tnr('Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology')]),
-        blank(),
+        para([tnr('Avadi, Chennai - 600 062, Tamil Nadu')]),
+        blank(100),
         para([
           tnr('Subject: ', { bold: true }),
-          tnr(`Request for On Duty (OD) for ${odDateStr} — ${entries.length} Student${entries.length > 1 ? 's' : ''}`, { bold: true })
+          tnr(`Request for On Duty (OD) Permission — "${eventName}" — ${odDatesStr} — Reg.`, { bold: true })
         ]),
-        blank(),
+        blank(80),
         para([tnr('Respected Sir/Madam,')]),
-        blank(),
-        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 200 }, children: [tnr(bodyIntro)] }),
-        blank(),
+        blank(80),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 160, line: 276 }, children: [tnr(bodyIntro)] }),
+        blank(60),
         studentTable,
-        blank(),
-        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 200 }, children: [tnr(bodyClose)] }),
-        blank(),
+        blank(80),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 140, line: 276 }, children: [tnr(bodyDetails)] }),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 180, line: 276 }, children: [tnr(bodyClose)] }),
+        blank(80),
         para([tnr('Thanking you,')]),
-        blank(),
-        para([tnr('Yours sincerely,')]),
-        blank(),
-        para([tnr('(Authorised Signatory)')]),
+        blank(120),
+        para([tnr('Yours faithfully,')]),
+        blank(200),
+        para([tnr(fromName, { bold: true })]),
+        para([tnr(designation)]),
         para([tnr(deptText)]),
         para([tnr('Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology')])
       ]
@@ -248,20 +281,66 @@ function buildCombinedDocx(entries, letterDate) {
   });
 }
 
-function buildDocx(entry, letterDate) {
-  const odDateStr     = fmtDate(entry.od_date);
+// ─── Single Student DOCX ───────────────────────────────────────────────────────
+function buildDocx(entry, letterDate, meta = {}) {
+  const odDateStr = meta.odDates ? meta.odDates : fmtDate(entry.od_date);
   const letterDateStr = letterDate
     ? fmtDate(letterDate)
     : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
-  const bodyText =
-    `I, ${entry.student_name} (VTU ID: ${entry.vtu_id}), a student of ${entry.department}, ` +
-    `humbly request you to kindly grant me an On Duty (OD) for ${odDateStr}, ` +
-    `as I was engaged in ${entry.reason}.`;
+  const fromName = meta.fromName || entry.student_name;
+  const designation = meta.fromDesignation || `Student (VTU ID: ${entry.vtu_id})`;
+  const deptText = meta.fromDept || entry.department;
+  const eventName = meta.eventName || 'the Scheduled Academic / Co-Curricular Event';
+  const eventDates = meta.eventDates ? meta.eventDates : odDateStr;
+  const reasonText = meta.reason || entry.reason;
+  const toAuthority = meta.toAuthority || 'The Dean';
+  const toSchool = meta.toSchool || 'School of Computing';
+
+  const thinBorder = {
+    top:    { style: BorderStyle.SINGLE, size: 1, color: '333333' },
+    bottom: { style: BorderStyle.SINGLE, size: 1, color: '333333' },
+    left:   { style: BorderStyle.SINGLE, size: 1, color: '333333' },
+    right:  { style: BorderStyle.SINGLE, size: 1, color: '333333' }
+  };
+
+  const studentTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({
+        tableHeader: true,
+        children: ['Student Name', 'VTU ID', 'Department', 'OD Date(s)'].map(h =>
+          new TableCell({
+            borders: thinBorder,
+            shading: { fill: 'EAEAEA', type: ShadingType.CLEAR },
+            children: [new Paragraph({ children: [tnr(h, { bold: true })], spacing: { before: 60, after: 60 } })]
+          })
+        )
+      }),
+      new TableRow({
+        children: [
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.student_name, { bold: true })], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.vtu_id)], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.department)], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(odDateStr)], spacing: { before: 60, after: 60 } })] })
+        ]
+      })
+    ]
+  });
+
+  const bodyIntro =
+    `With reference to the subject cited above, I wish to submit that I, ${entry.student_name} ` +
+    `(VTU ID: ${entry.vtu_id}), a bona fide student of ${entry.department}, ` +
+    `participated in "${eventName}" scheduled from ${eventDates}. ` +
+    `The reason and purpose for On Duty (OD) was "${reasonText}".`;
+
+  const bodyDetails =
+    `I was officially engaged in duty for this event during: ${odDateStr}. ` +
+    `On account of this official representation, I could not attend regular instructional lectures and practical laboratory sessions on the said date(s).`;
 
   const closingText =
-    `I kindly request you to consider my application and issue an OD letter for the ` +
-    `aforementioned date. I assure you that I have fulfilled all the necessary requirements for the same.`;
+    `I therefore kindly request your good office to grant On Duty (OD) attendance for ${odDateStr} ` +
+    `and facilitate regularisation of my attendance. I have completed all prerequisites and documentation for the same.`;
 
   return new Document({
     sections: [{
@@ -277,33 +356,41 @@ function buildDocx(entry, letterDate) {
       },
       children: [
         para([tnr('From,', { bold: true })]),
-        para([tnr(entry.student_name)]),
-        para([tnr(entry.department)]),
+        para([tnr(fromName, { bold: true })]),
+        para([tnr(designation)]),
+        para([tnr(deptText)]),
         para([tnr('Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology')]),
-        blank(),
+        para([tnr('Avadi, Chennai - 600 062, Tamil Nadu')]),
+        blank(80),
         para([tnr('Date: ', { bold: true }), tnr(letterDateStr)]),
-        blank(),
+        blank(80),
         para([tnr('To,', { bold: true })]),
-        para([tnr('The Dean')]),
-        para([tnr('School of Computing')]),
+        para([tnr(toAuthority)]),
+        para([tnr(toSchool)]),
         para([tnr('Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology')]),
-        blank(),
+        para([tnr('Avadi, Chennai - 600 062, Tamil Nadu')]),
+        blank(100),
         para([
           tnr('Subject: ', { bold: true }),
-          tnr(`Request for On Duty (OD) Letter for ${odDateStr}`, { bold: true })
+          tnr(`Request for On Duty (OD) Letter — "${eventName}" — ${odDateStr} — Reg.`, { bold: true })
         ]),
-        blank(),
+        blank(80),
         para([tnr('Respected Sir/Madam,')]),
-        blank(),
-        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 200 }, children: [tnr(bodyText)] }),
-        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 200 }, children: [tnr(closingText)] }),
-        blank(),
+        blank(80),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 160, line: 276 }, children: [tnr(bodyIntro)] }),
+        blank(60),
+        studentTable,
+        blank(80),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 140, line: 276 }, children: [tnr(bodyDetails)] }),
+        new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 180, line: 276 }, children: [tnr(closingText)] }),
+        blank(80),
         para([tnr('Thanking you,')]),
-        blank(),
-        para([tnr('Yours sincerely,')]),
-        para([tnr(entry.student_name)]),
-        para([tnr(entry.vtu_id)]),
-        para([tnr(entry.department)]),
+        blank(120),
+        para([tnr('Yours faithfully,')]),
+        blank(200),
+        para([tnr(fromName, { bold: true })]),
+        para([tnr(designation)]),
+        para([tnr(deptText)]),
         para([tnr('Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology')])
       ]
     }]
@@ -312,11 +399,11 @@ function buildDocx(entry, letterDate) {
 
 // ─── Download routes ───────────────────────────────────────────────────────────
 app.post('/api/download', async (req, res) => {
-  const { id, letterDate } = req.body;
+  const { id, letterDate, meta } = req.body;
   const entry = odEntries.find(e => e.id === parseInt(id));
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
 
-  const doc    = buildDocx(entry, letterDate);
+  const doc    = buildDocx(entry, letterDate, meta || {});
   const buffer = await Packer.toBuffer(doc);
   const fname  = `OD_${entry.student_name.replace(/\s+/g, '_')}_${entry.od_date}.docx`;
   res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
@@ -325,14 +412,14 @@ app.post('/api/download', async (req, res) => {
 });
 
 app.post('/api/download-bulk', async (req, res) => {
-  const { ids, letterDate } = req.body;
+  const { ids, letterDate, meta } = req.body;
   if (!ids || !ids.length) return res.status(400).json({ error: 'No entries selected' });
 
   const zip = new JSZip();
   for (const id of ids) {
     const entry = odEntries.find(e => e.id === parseInt(id));
     if (!entry) continue;
-    const doc    = buildDocx(entry, letterDate);
+    const doc    = buildDocx(entry, letterDate, meta || {});
     const buffer = await Packer.toBuffer(doc);
     const fname  = `OD_${entry.student_name.replace(/\s+/g, '_')}_${entry.od_date}.docx`;
     zip.file(fname, buffer);
@@ -345,7 +432,7 @@ app.post('/api/download-bulk', async (req, res) => {
 });
 
 app.post('/api/download-combined', async (req, res) => {
-  const { ids, letterDate } = req.body;
+  const { ids, letterDate, meta } = req.body;
   if (!ids || !ids.length) return res.status(400).json({ error: 'No entries selected' });
 
   const entries = ids
@@ -363,7 +450,7 @@ app.post('/api/download-combined', async (req, res) => {
   const dates = Object.keys(byDate).sort();
 
   if (dates.length === 1) {
-    const doc    = buildCombinedDocx(byDate[dates[0]], letterDate);
+    const doc    = buildCombinedDocx(byDate[dates[0]], letterDate, meta || {});
     const buffer = await Packer.toBuffer(doc);
     const fname  = `OD_Combined_${dates[0]}.docx`;
     res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
@@ -372,7 +459,7 @@ app.post('/api/download-combined', async (req, res) => {
   } else {
     const zip = new JSZip();
     for (const date of dates) {
-      const doc    = buildCombinedDocx(byDate[date], letterDate);
+      const doc    = buildCombinedDocx(byDate[date], letterDate, meta || {});
       const buffer = await Packer.toBuffer(doc);
       zip.file(`OD_Combined_${date}.docx`, buffer);
     }
