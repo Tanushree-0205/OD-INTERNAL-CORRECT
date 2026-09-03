@@ -80,6 +80,16 @@ function queryOne(sql, params = []) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Ensure DB is ready before handling any API request (fixes async race condition)
+app.use(async (req, res, next) => {
+  try {
+    await dbInitPromise;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Database initialization failed', details: err.message });
+  }
+});
+
 // ─── Settings API ──────────────────────────────────────────────────────────────
 app.get('/api/settings', (req, res) => {
   const rows = queryAll('SELECT key, value FROM settings');
@@ -490,18 +500,21 @@ app.post('/api/download-combined', async (req, res) => {
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
-initDB().then(() => {
-  if (!process.env.VERCEL) {
-    // Local dev: start HTTP server
+// Start DB init immediately so it's ready before first request
+const dbInitPromise = initDB();
+
+if (!process.env.VERCEL) {
+  // Local dev: wait for DB then start HTTP server
+  dbInitPromise.then(() => {
     app.listen(PORT, () => {
       console.log(`\n✅  OD Letter Processing System`);
       console.log(`🌐  http://localhost:${PORT}\n`);
     });
-  }
-}).catch(err => {
-  console.error('Failed to initialise database:', err);
-  if (!process.env.VERCEL) process.exit(1);
-});
+  }).catch(err => {
+    console.error('Failed to initialise database:', err);
+    process.exit(1);
+  });
+}
 
 // Export for Vercel serverless runtime
 module.exports = app;
