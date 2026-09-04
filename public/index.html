@@ -1565,6 +1565,11 @@ tbody td {
     <div class="nav-link" data-page="settings" onclick="navigate('settings')">
       <span class="icon">⚙️</span> Signatory & Settings
     </div>
+
+    <div class="nav-category" style="margin-top:12px">Cloud Database</div>
+    <div class="nav-link" data-page="database" onclick="navigate('database')">
+      <span class="icon">🗄️</span> Database Explorer
+    </div>
   </nav>
 
   <div class="sidebar-footer">
@@ -1599,6 +1604,7 @@ tbody td {
       <div class="nav-pill" data-pill="register" onclick="navigate('register')">📋 Register</div>
       <div class="nav-pill" data-pill="download" onclick="navigate('download')">📥 Download</div>
       <div class="nav-pill" data-pill="settings" onclick="navigate('settings')">⚙️ Signatory</div>
+      <div class="nav-pill" data-pill="database" onclick="navigate('database')">🗄️ Database</div>
     </div>
 
     <div class="topbar-right">
@@ -2023,6 +2029,73 @@ tbody td {
       </div>
     </section>
 
+    <!-- ── PAGE 7: CLOUD DATABASE EXPLORER (#page-database) ── -->
+    <section class="page" id="page-database">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;flex-wrap:wrap;gap:14px">
+        <div>
+          <h2 style="font-size:26px;color:var(--text-pure)">🗄️ Cloud Database Explorer</h2>
+          <p style="font-size:13.5px;color:var(--text-med)">Direct PostgreSQL table repository & cloud connection health metrics</p>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-cyan btn-sm" onclick="loadDatabaseExplorer()">🔄 Refresh DB Data</button>
+        </div>
+      </div>
+
+      <!-- Cloud DB Health Status Card -->
+      <div class="glass-card" style="margin-bottom:24px" id="db-health-card">
+        <div class="card-title-bar">
+          <h3><span class="dot"></span> Database Engine & Connection Health</h3>
+          <span class="status-badge" id="db-status-badge">Checking connection...</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px" id="db-health-grid">
+          <div style="background:var(--input-bg);padding:14px 18px;border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+            <div style="font-size:11px;font-weight:700;color:var(--text-low);text-transform:uppercase">Database Engine</div>
+            <div style="font-size:15px;font-weight:700;color:var(--text-pure);margin-top:4px" id="db-provider-name">Supabase PostgreSQL</div>
+          </div>
+          <div style="background:var(--input-bg);padding:14px 18px;border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+            <div style="font-size:11px;font-weight:700;color:var(--text-low);text-transform:uppercase">Cloud Endpoint</div>
+            <div style="font-size:13px;font-weight:600;color:var(--accent-sky);margin-top:4px;word-break:break-all" id="db-endpoint-url">Connecting...</div>
+          </div>
+          <div style="background:var(--input-bg);padding:14px 18px;border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+            <div style="font-size:11px;font-weight:700;color:var(--text-low);text-transform:uppercase">Persisted DB Records</div>
+            <div style="font-size:18px;font-weight:800;color:var(--primary-light);margin-top:2px" id="db-total-records">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Database Table Records Inspector -->
+      <div class="glass-card" style="padding:0">
+        <div style="padding:18px 24px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div class="card-title-bar" style="margin:0;padding:0;border:none">
+            <h3><span class="dot"></span> <code>od_entries</code> Table Roster</h3>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+            <input type="text" id="db-search" placeholder="🔍 Search DB records..." oninput="filterDatabaseTable()"
+              style="background:var(--input-bg);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:8px 14px;color:var(--text-high);font-size:13px;outline:none;min-width:200px"/>
+          </div>
+        </div>
+        <div class="table-container" style="border:none">
+          <table>
+            <thead>
+              <tr>
+                <th>DB ID</th>
+                <th>Student Name</th>
+                <th>VTU ID</th>
+                <th>Department</th>
+                <th>OD Date</th>
+                <th>Reason / Activity</th>
+                <th>Status</th>
+                <th>Raw JSON</th>
+              </tr>
+            </thead>
+            <tbody id="db-table-body">
+              <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-low)">Querying database records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </div>
 
   <!-- ════════════════════════════════════════════════════════════════════════════
@@ -2271,6 +2344,25 @@ tbody td {
   </div>
 </div>
 
+<!-- ── RAW JSON INSPECTOR MODAL ── -->
+<div class="modal-overlay" id="json-modal">
+  <div class="modal large">
+    <div class="modal-header">
+      <div>
+        <h3>🔍 Raw Database Record (PostgreSQL JSON)</h3>
+        <p>Exact object structure stored in Supabase</p>
+      </div>
+      <div class="modal-close" onclick="closeJsonModal()">✕</div>
+    </div>
+    <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;max-height:360px;overflow-y:auto">
+      <pre id="json-viewer-content" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent-ice);white-space:pre-wrap;word-break:break-all"></pre>
+    </div>
+    <div class="btn-actions" style="margin-top:20px">
+      <button type="button" class="btn btn-ghost" onclick="closeJsonModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TOASTS ── -->
 <div class="toast-container" id="toasts"></div>
 
@@ -2324,7 +2416,8 @@ const pageLabels = {
   add:       '➕ Add New OD Entry',
   register:  '📋 OD Audit Register',
   download:  '📥 Official Letter Dispatch',
-  settings:  '⚙️ Signatory & Settings'
+  settings:  '⚙️ Signatory & Settings',
+  database:  '🗄️ Supabase Cloud Database Explorer'
 };
 
 function navigate(page) {
@@ -2354,6 +2447,7 @@ function navigate(page) {
   if (page === 'register') loadRegister();
   if (page === 'download') loadDownloadTable();
   if (page === 'settings') loadSettings();
+  if (page === 'database') loadDatabaseExplorer();
 }
 
 function toggleSidebar(open) {
@@ -3120,6 +3214,100 @@ async function confirmBulkUpload() {
   } catch (err) {
     toast('Failed to upload entries: ' + err.message, 'error');
   }
+}
+
+// ── Database Explorer Logic ──────────────────────────────────────────────────
+let dbRecordsCache = [];
+
+async function loadDatabaseExplorer() {
+  const badge = document.getElementById('db-status-badge');
+  const providerEl = document.getElementById('db-provider-name');
+  const endpointEl = document.getElementById('db-endpoint-url');
+  const totalEl = document.getElementById('db-total-records');
+
+  if (badge) {
+    badge.textContent = '⚡ Checking...';
+    badge.className = 'status-badge status-pending';
+  }
+
+  try {
+    const health = await api('GET', '/api/db/health');
+    if (health.connected) {
+      if (badge) {
+        badge.textContent = '🟢 Active Cloud DB (Supabase)';
+        badge.className = 'status-badge status-processed';
+      }
+      if (providerEl) providerEl.textContent = health.provider;
+      if (endpointEl) endpointEl.textContent = health.supabaseUrl;
+      if (totalEl) totalEl.textContent = health.totalCount;
+    } else {
+      if (badge) {
+        badge.textContent = 'ℹ️ Local Memory Storage';
+        badge.className = 'status-badge status-pending';
+      }
+      if (providerEl) providerEl.textContent = 'In-Memory Cache Mode';
+      if (endpointEl) endpointEl.textContent = 'Set SUPABASE_URL in .env to connect';
+      if (totalEl) totalEl.textContent = health.totalCount;
+    }
+
+    const entries = await api('GET', '/api/entries');
+    dbRecordsCache = entries || [];
+    renderDatabaseTable(dbRecordsCache);
+  } catch (err) {
+    toast('Error loading database explorer: ' + err.message, 'error');
+  }
+}
+
+function renderDatabaseTable(rows) {
+  const tbody = document.getElementById('db-table-body');
+  if (!tbody) return;
+
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-low)">No records found in database</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><code>#${r.id}</code></td>
+      <td><strong>${escapeHtml(r.student_name)}</strong></td>
+      <td><code>${escapeHtml(r.vtu_id)}</code></td>
+      <td>${escapeHtml(r.department)}</td>
+      <td>${escapeHtml(r.od_date)}</td>
+      <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.reason)}">${escapeHtml(r.reason)}</td>
+      <td><span class="status-badge ${r.status === 'Processed' ? 'status-processed' : 'status-pending'}">${r.status === 'Processed' ? '✅ Processed' : '⏳ Pending'}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick='viewRawJson(${JSON.stringify(r).replace(/'/g, "&apos;")})'>
+          🔍 JSON
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterDatabaseTable() {
+  const query = (document.getElementById('db-search')?.value || '').toLowerCase();
+  if (!query) {
+    renderDatabaseTable(dbRecordsCache);
+    return;
+  }
+  const filtered = dbRecordsCache.filter(r =>
+    (r.student_name && r.student_name.toLowerCase().includes(query)) ||
+    (r.vtu_id && r.vtu_id.toLowerCase().includes(query)) ||
+    (r.department && r.department.toLowerCase().includes(query)) ||
+    (r.reason && r.reason.toLowerCase().includes(query))
+  );
+  renderDatabaseTable(filtered);
+}
+
+function viewRawJson(obj) {
+  const viewer = document.getElementById('json-viewer-content');
+  if (viewer) viewer.textContent = JSON.stringify(obj, null, 2);
+  document.getElementById('json-modal')?.classList.add('active');
+}
+
+function closeJsonModal() {
+  document.getElementById('json-modal')?.classList.remove('active');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

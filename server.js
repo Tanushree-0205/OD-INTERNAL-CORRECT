@@ -1,6 +1,8 @@
+require('dotenv').config();
 const express    = require('express');
 const path       = require('path');
 const JSZip      = require('jszip');
+const { createClient } = require('@supabase/supabase-js');
 const {
   Document, Packer, Paragraph, TextRun, AlignmentType,
   convertInchesToTwip, Table, TableRow, TableCell,
@@ -10,12 +12,26 @@ const {
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ─── In-Memory Data Store (replaces sql.js / SQLite) ──────────────────────────
-// NOTE: Data resets on cold start (Vercel serverless limitation).
-// For persistent storage, connect a cloud DB like Supabase or PlanetScale.
+// ─── Supabase Cloud Database Client ────────────────────────────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_KEY) {
+  try {
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('✅ Connected to Supabase Cloud Database:', SUPABASE_URL);
+  } catch (e) {
+    console.warn('⚠️ Supabase initialization warning:', e.message);
+  }
+} else {
+  console.log('ℹ️ Running in local memory store mode. (Add SUPABASE_URL & SUPABASE_KEY to connect cloud database)');
+}
+
+// ─── In-Memory Fallback Store ──────────────────────────────────────────────────
 let nextId = 1;
 let odEntries = [];
-let settings  = { hod_name: 'HOD Name', hod_dept: 'Department' };
+let settings  = { hod_name: 'Dr. M. Senthil Kumar', hod_desig: 'Professor & Head of the Department', hod_dept: 'Computer Science & Engineering' };
 
 function now() {
   return new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -25,23 +41,106 @@ function now() {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ─── Database Health & Status API ──────────────────────────────────────────────
+app.get('/api/db/health', async (req, res) => {
+  if (!supabase) {
+    return res.json({
+      connected: false,
+      provider: 'Local Memory Storage',
+      supabaseUrl: null,
+      message: 'SUPABASE_URL and SUPABASE_KEY environment variables are not configured.',
+      totalCount: odEntries.length
+    });
+  }
+
+  try {
+    const { data, count, error } = await supabase
+      .from('od_entries')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) throw error;
+    res.json({
+      connected: true,
+      provider: 'Supabase PostgreSQL Cloud Database',
+      supabaseUrl: SUPABASE_URL,
+      message: 'Active cloud database connection verified',
+      totalCount: count || 0
+    });
+  } catch (err) {
+    res.json({
+      connected: false,
+      provider: 'Supabase PostgreSQL Cloud Database (Error)',
+      supabaseUrl: SUPABASE_URL,
+      message: err.message || 'Error communicating with Supabase',
+      totalCount: odEntries.length
+    });
+  }
+});
+
 // ─── Settings API ──────────────────────────────────────────────────────────────
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', async (req, res) => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('settings').select('*');
+      if (!error && data && data.length > 0) {
+        data.forEach(item => {
+          settings[item.key] = item.value;
+        });
+      }
+    } catch (e) {
+      console.error('Supabase settings fetch error:', e.message);
+    }
+  }
   res.json(settings);
 });
 
-app.post('/api/settings', (req, res) => {
+app.post('/api/settings', async (req, res) => {
   const { key, value } = req.body;
   if (!key) return res.status(400).json({ error: 'key required' });
   settings[key] = value;
+
+  if (supabase) {
+    try {
+      await supabase.from('settings').upsert({ key, value, updated_at: now() });
+    } catch (e) {
+      console.error('Supabase settings update error:', e.message);
+    }
+  }
+
   res.json({ success: true });
 });
 
 // ─── OD Entries API ────────────────────────────────────────────────────────────
-app.get('/api/entries', (req, res) => {
+app.get('/api/entries', async (req, res) => {
   const { date, status, dept, search } = req.query;
-  let rows = [...odEntries];
 
+  if (supabase) {
+    try {
+      let query = supabase.from('od_entries').select('*');
+      if (date) query = query.eq('od_date', date);
+      if (status) query = query.eq('status', status);
+      if (dept) query = query.ilike('department', `%${dept}%`);
+
+      const { data, error } = await query.order('od_date', { ascending: false }).order('id', { ascending: false });
+      if (!error && data) {
+        let rows = data;
+        if (search) {
+          const s = search.toLowerCase();
+          rows = rows.filter(r =>
+            (r.student_name && r.student_name.toLowerCase().includes(s)) ||
+            (r.vtu_id && r.vtu_id.toLowerCase().includes(s))
+          );
+        }
+        odEntries = rows; // Sync local cache
+        return res.json(rows);
+      }
+    } catch (e) {
+      console.error('Supabase fetch entries error:', e.message);
+    }
+  }
+
+  // Local fallback
+  let rows = [...odEntries];
   if (date)   rows = rows.filter(r => r.od_date === date);
   if (status) rows = rows.filter(r => r.status === status);
   if (dept)   rows = rows.filter(r => r.department.toLowerCase().includes(dept.toLowerCase()));
@@ -53,7 +152,6 @@ app.get('/api/entries', (req, res) => {
     );
   }
 
-  // Sort: od_date DESC, id DESC
   rows.sort((a, b) => {
     if (b.od_date !== a.od_date) return b.od_date.localeCompare(a.od_date);
     return b.id - a.id;
@@ -62,13 +160,12 @@ app.get('/api/entries', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/entries', (req, res) => {
+app.post('/api/entries', async (req, res) => {
   const { student_name, vtu_id, department, od_date, reason, status, notes } = req.body;
   if (!student_name || !vtu_id || !department || !od_date || !reason)
     return res.status(400).json({ error: 'Missing required fields' });
 
-  const entry = {
-    id: nextId++,
+  const entryData = {
     student_name,
     vtu_id,
     department,
@@ -79,22 +176,38 @@ app.post('/api/entries', (req, res) => {
     created_at: now(),
     updated_at: now()
   };
-  odEntries.push(entry);
-  res.json({ id: entry.id, success: true });
+
+  let insertedId = nextId++;
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('od_entries').insert([entryData]).select();
+      if (!error && data && data.length > 0) {
+        insertedId = data[0].id;
+        odEntries.push(data[0]);
+        return res.json({ id: insertedId, success: true, cloud: true });
+      }
+    } catch (e) {
+      console.error('Supabase insert error:', e.message);
+    }
+  }
+
+  const localEntry = { id: insertedId, ...entryData };
+  odEntries.push(localEntry);
+  res.json({ id: insertedId, success: true, cloud: false });
 });
 
-app.post('/api/entries/bulk', (req, res) => {
+app.post('/api/entries/bulk', async (req, res) => {
   const entriesList = Array.isArray(req.body) ? req.body : req.body.entries;
   if (!Array.isArray(entriesList) || entriesList.length === 0) {
     return res.status(400).json({ error: 'Invalid or empty entries array' });
   }
 
-  const created = [];
+  const validEntries = [];
   for (const item of entriesList) {
     const { student_name, vtu_id, department, od_date, reason, status, notes } = item;
     if (!student_name || !vtu_id || !department || !od_date) continue;
-    const entry = {
-      id: nextId++,
+    validEntries.push({
       student_name,
       vtu_id,
       department,
@@ -104,43 +217,102 @@ app.post('/api/entries/bulk', (req, res) => {
       notes: notes || '',
       created_at: now(),
       updated_at: now()
-    };
+    });
+  }
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('od_entries').insert(validEntries).select();
+      if (!error && data) {
+        data.forEach(e => odEntries.push(e));
+        return res.json({ success: true, count: data.length, entries: data, cloud: true });
+      }
+    } catch (e) {
+      console.error('Supabase bulk insert error:', e.message);
+    }
+  }
+
+  const created = [];
+  for (const item of validEntries) {
+    const entry = { id: nextId++, ...item };
     odEntries.push(entry);
     created.push(entry);
   }
 
-  res.json({ success: true, count: created.length, entries: created });
+  res.json({ success: true, count: created.length, entries: created, cloud: false });
 });
 
-app.put('/api/entries/:id', (req, res) => {
+app.put('/api/entries/:id', async (req, res) => {
   const id  = parseInt(req.params.id);
+  const { student_name, vtu_id, department, od_date, reason, status, notes } = req.body;
+
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from('od_entries')
+        .update({ student_name, vtu_id, department, od_date, reason, status, notes: notes || '', updated_at: now() })
+        .eq('id', id);
+
+      if (!error) {
+        const idx = odEntries.findIndex(e => e.id === id);
+        if (idx !== -1) {
+          odEntries[idx] = { ...odEntries[idx], student_name, vtu_id, department, od_date, reason, status, notes, updated_at: now() };
+        }
+        return res.json({ success: true, cloud: true });
+      }
+    } catch (e) {
+      console.error('Supabase update error:', e.message);
+    }
+  }
+
   const idx = odEntries.findIndex(e => e.id === id);
   if (idx === -1) return res.status(404).json({ error: 'Entry not found' });
 
-  const { student_name, vtu_id, department, od_date, reason, status, notes } = req.body;
   odEntries[idx] = {
     ...odEntries[idx],
     student_name, vtu_id, department, od_date, reason, status,
     notes: notes || '',
     updated_at: now()
   };
-  res.json({ success: true });
+  res.json({ success: true, cloud: false });
 });
 
-app.delete('/api/entries/:id', (req, res) => {
+app.delete('/api/entries/:id', async (req, res) => {
   const id  = parseInt(req.params.id);
+
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('od_entries').delete().eq('id', id);
+      if (!error) {
+        const idx = odEntries.findIndex(e => e.id === id);
+        if (idx !== -1) odEntries.splice(idx, 1);
+        return res.json({ success: true, cloud: true });
+      }
+    } catch (e) {
+      console.error('Supabase delete error:', e.message);
+    }
+  }
+
   const idx = odEntries.findIndex(e => e.id === id);
   if (idx === -1) return res.status(404).json({ error: 'Entry not found' });
   odEntries.splice(idx, 1);
   res.json({ success: true });
 });
 
-app.get('/api/stats', (req, res) => {
-  const total      = odEntries.length;
-  const pending    = odEntries.filter(e => e.status === 'Pending').length;
-  const processed  = odEntries.filter(e => e.status === 'Processed').length;
+app.get('/api/stats', async (req, res) => {
+  let rows = odEntries;
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('od_entries').select('*');
+      if (data) rows = data;
+    } catch (e) {}
+  }
+
+  const total      = rows.length;
+  const pending    = rows.filter(e => e.status === 'Pending').length;
+  const processed  = rows.filter(e => e.status === 'Processed').length;
   const today      = new Date().toISOString().split('T')[0];
-  const todayCount = odEntries.filter(e => e.od_date === today).length;
+  const todayCount = rows.filter(e => e.od_date === today).length;
   res.json({ total, pending, processed, todayCount });
 });
 
