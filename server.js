@@ -330,32 +330,79 @@ function blank(spacing = 100) {
   return new Paragraph({ children: [tnr('')], spacing: { after: spacing } });
 }
 
-function fmtDate(dateStr) {
+function formatDMY(dateStr) {
   if (!dateStr) return '';
-  // If already formatted or text range
-  if (typeof dateStr === 'string' && (dateStr.includes(' ') || dateStr.includes('-') === false)) {
-    return dateStr;
+  if (typeof dateStr === 'string' && dateStr.includes('/')) return dateStr;
+  const str = String(dateStr).trim();
+  const parts = str.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
   }
-  try {
-    const d = new Date(dateStr + (dateStr.length === 10 ? 'T00:00:00' : ''));
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-  } catch (e) {
-    return dateStr;
-  }
+  return str;
 }
 
-// ─── Combined DOCX: Professional Letter for multiple students ─────────────────
+function makeLetterhead() {
+  return [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 40 },
+      children: [
+        tnr('VEL TECH RANGARAJAN DR. SAGUNTHALA R&D INSTITUTE OF SCIENCE AND TECHNOLOGY', {
+          bold: true,
+          size: 26, // 13pt
+          color: '0F172A'
+        })
+      ]
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 40 },
+      children: [
+        tnr('(Deemed to be University Estd. u/s 3 of UGC Act, 1956)', {
+          italics: true,
+          size: 19, // 9.5pt
+          color: '475569'
+        })
+      ]
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 120 },
+      border: {
+        bottom: { style: BorderStyle.SINGLE, size: 8, color: '1D4ED8' }
+      },
+      children: [
+        tnr('School of Computing  ·  Avadi, Chennai - 600 062, Tamil Nadu, India', {
+          size: 21, // 10.5pt
+          color: '1E293B',
+          bold: true
+        })
+      ]
+    }),
+    blank(100)
+  ];
+}
+
+// ─── Combined DOCX: Multi-Date Grouped Letter with Student Rosters ────────────
 function buildCombinedDocx(entries, letterDate, meta = {}) {
   if (!entries || !entries.length) throw new Error('No entries');
 
-  const odDatesList = [...new Set(entries.map(e => e.od_date))];
-  const defaultOdDateStr = odDatesList.map(d => fmtDate(d)).join(', ');
+  // Group entries by date
+  const byDate = {};
+  entries.forEach(e => {
+    const d = e.od_date || 'Undated';
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(e);
+  });
+  const sortedDates = Object.keys(byDate).sort();
+
+  const formattedDateList = sortedDates.map(d => formatDMY(d));
+  const defaultOdDateStr = formattedDateList.join(', ');
   const odDatesStr = meta.odDates ? meta.odDates : defaultOdDateStr;
 
   const letterDateStr = letterDate
-    ? fmtDate(letterDate)
-    : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+    ? formatDMY(letterDate)
+    : new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
 
   const depts = [...new Set(entries.map(e => e.department))];
   const deptText = meta.fromDept || depts.join(' / ') || 'School of Computing';
@@ -375,40 +422,63 @@ function buildCombinedDocx(entries, letterDate, meta = {}) {
     right:  { style: BorderStyle.SINGLE, size: 1, color: '333333' }
   };
 
-  const headers = ['S.No', 'Student Name', 'VTU ID', 'Department', 'OD Date(s)'];
-  const colWidths = [800, 3200, 2400, 2600, 1800];
+  const headers = ['S.No', 'Student Name', 'VTU ID', 'Department'];
+  const colWidths = [800, 3200, 2400, 3600];
 
-  const headerRow = new TableRow({
-    tableHeader: true,
-    children: headers.map((h, i) =>
-      new TableCell({
-        width: { size: colWidths[i], type: WidthType.DXA },
-        borders: thinBorder,
-        shading: { fill: 'EAEAEA', type: ShadingType.CLEAR },
-        children: [new Paragraph({
-          children: [tnr(h, { bold: true })],
-          spacing: { before: 80, after: 80 }
-        })]
+  // Build multi-date sections
+  const multiDateSections = [];
+  for (const d of sortedDates) {
+    const dateEntries = byDate[d];
+
+    // Date Header: Date: DD/MM/YYYY
+    multiDateSections.push(
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { before: 140, after: 80 },
+        children: [
+          tnr('Date: ', { bold: true, size: 24, color: '0F172A' }),
+          tnr(formatDMY(d), { bold: true, size: 24, color: '1D4ED8' })
+        ]
       })
-    )
-  });
+    );
 
-  const dataRows = entries.map((e, idx) =>
-    new TableRow({
-      children: [
-        new TableCell({ width: { size: colWidths[0], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(String(idx + 1))], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[1], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.student_name, { bold: true })], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[2], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.vtu_id)], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[3], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.department)], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[4], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(fmtDate(e.od_date))], spacing: { before: 60, after: 60 } })] })
-      ]
-    })
-  );
+    // Table Header Row
+    const headerRow = new TableRow({
+      tableHeader: true,
+      children: headers.map((h, i) =>
+        new TableCell({
+          width: { size: colWidths[i], type: WidthType.DXA },
+          borders: thinBorder,
+          shading: { fill: 'F1F5F9', type: ShadingType.CLEAR },
+          children: [new Paragraph({
+            children: [tnr(h, { bold: true, size: 22 })],
+            spacing: { before: 80, after: 80 }
+          })]
+        })
+      )
+    });
 
-  const studentTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [headerRow, ...dataRows]
-  });
+    // Table Data Rows
+    const dataRows = dateEntries.map((e, idx) =>
+      new TableRow({
+        children: [
+          new TableCell({ width: { size: colWidths[0], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(String(idx + 1), { size: 22 })], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ width: { size: colWidths[1], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.student_name, { bold: true, size: 22 })], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ width: { size: colWidths[2], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.vtu_id, { size: 22 })], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ width: { size: colWidths[3], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.department, { size: 22 })], spacing: { before: 60, after: 60 } })] })
+        ]
+      })
+    );
+
+    multiDateSections.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [headerRow, ...dataRows]
+      })
+    );
+
+    multiDateSections.push(blank(80));
+  }
 
   const bodyIntro =
     `With reference to the subject cited above, we bring to your kind notice that the following ` +
@@ -420,11 +490,11 @@ function buildCombinedDocx(entries, letterDate, meta = {}) {
   const bodyDetails =
     `The student${entries.length > 1 ? 's were' : ' was'} actively on duty during the period: ${odDatesStr}. ` +
     `Due to their official representation and active participation in the event, ` +
-    `they could not attend the regularly scheduled academic classes and laboratory sessions during this duration.`;
+    `they could not attend regular instructional classes and practical laboratory sessions during this duration.`;
 
   const bodyClose =
     `In view of the above, we kindly request your good office to grant On Duty (OD) attendance ` +
-    `for the aforementioned student${entries.length > 1 ? 's' : ''} for ${odDatesStr} and enable the appropriate attendance recording in the academic registry.`;
+    `for the aforementioned student${entries.length > 1 ? 's' : ''} for the respective date(s) indicated below and enable regularisation of attendance in the academic registry.`;
 
   return new Document({
     sections: [{
@@ -439,6 +509,7 @@ function buildCombinedDocx(entries, letterDate, meta = {}) {
         }
       },
       children: [
+        ...makeLetterhead(),
         para([tnr('From,', { bold: true })]),
         para([tnr(fromName, { bold: true })]),
         para([tnr(designation)]),
@@ -463,8 +534,8 @@ function buildCombinedDocx(entries, letterDate, meta = {}) {
         blank(80),
         new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 160, line: 276 }, children: [tnr(bodyIntro)] }),
         blank(60),
-        studentTable,
-        blank(80),
+        ...multiDateSections,
+        blank(60),
         new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 140, line: 276 }, children: [tnr(bodyDetails)] }),
         new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 180, line: 276 }, children: [tnr(bodyClose)] }),
         blank(80),
@@ -483,10 +554,10 @@ function buildCombinedDocx(entries, letterDate, meta = {}) {
 
 // ─── Single Student DOCX ───────────────────────────────────────────────────────
 function buildDocx(entry, letterDate, meta = {}) {
-  const odDateStr = meta.odDates ? meta.odDates : fmtDate(entry.od_date);
+  const odDateStr = meta.odDates ? meta.odDates : formatDMY(entry.od_date);
   const letterDateStr = letterDate
-    ? fmtDate(letterDate)
-    : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+    ? formatDMY(letterDate)
+    : new Date().toLocaleDateString('en-GB');
 
   const fromName = meta.fromName || entry.student_name;
   const designation = meta.fromDesignation || `Student (VTU ID: ${entry.vtu_id})`;
@@ -509,20 +580,20 @@ function buildDocx(entry, letterDate, meta = {}) {
     rows: [
       new TableRow({
         tableHeader: true,
-        children: ['Student Name', 'VTU ID', 'Department', 'OD Date(s)'].map(h =>
+        children: ['Student Name', 'VTU ID', 'Department', 'OD Date'].map(h =>
           new TableCell({
             borders: thinBorder,
-            shading: { fill: 'EAEAEA', type: ShadingType.CLEAR },
-            children: [new Paragraph({ children: [tnr(h, { bold: true })], spacing: { before: 60, after: 60 } })]
+            shading: { fill: 'F1F5F9', type: ShadingType.CLEAR },
+            children: [new Paragraph({ children: [tnr(h, { bold: true, size: 22 })], spacing: { before: 60, after: 60 } })]
           })
         )
       }),
       new TableRow({
         children: [
-          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.student_name, { bold: true })], spacing: { before: 60, after: 60 } })] }),
-          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.vtu_id)], spacing: { before: 60, after: 60 } })] }),
-          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.department)], spacing: { before: 60, after: 60 } })] }),
-          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(odDateStr)], spacing: { before: 60, after: 60 } })] })
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.student_name, { bold: true, size: 22 })], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.vtu_id, { size: 22 })], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(entry.department, { size: 22 })], spacing: { before: 60, after: 60 } })] }),
+          new TableCell({ borders: thinBorder, children: [new Paragraph({ children: [tnr(odDateStr, { size: 22 })], spacing: { before: 60, after: 60 } })] })
         ]
       })
     ]
@@ -555,6 +626,7 @@ function buildDocx(entry, letterDate, meta = {}) {
         }
       },
       children: [
+        ...makeLetterhead(),
         para([tnr('From,', { bold: true })]),
         para([tnr(fromName, { bold: true })]),
         para([tnr(designation)]),
@@ -605,7 +677,7 @@ app.post('/api/download', async (req, res) => {
 
   const doc    = buildDocx(entry, letterDate, meta || {});
   const buffer = await Packer.toBuffer(doc);
-  const fname  = `OD_${entry.student_name.replace(/\s+/g, '_')}_${entry.od_date}.docx`;
+  const fname  = `OD_${entry.student_name.replace(/\s+/g, '_')}_${formatDMY(entry.od_date).replace(/\//g, '-')}.docx`;
   res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.send(buffer);
@@ -621,7 +693,7 @@ app.post('/api/download-bulk', async (req, res) => {
     if (!entry) continue;
     const doc    = buildDocx(entry, letterDate, meta || {});
     const buffer = await Packer.toBuffer(doc);
-    const fname  = `OD_${entry.student_name.replace(/\s+/g, '_')}_${entry.od_date}.docx`;
+    const fname  = `OD_${entry.student_name.replace(/\s+/g, '_')}_${formatDMY(entry.od_date).replace(/\//g, '-')}.docx`;
     zip.file(fname, buffer);
   }
 
@@ -641,33 +713,12 @@ app.post('/api/download-combined', async (req, res) => {
 
   if (!entries.length) return res.status(404).json({ error: 'No valid entries found' });
 
-  const byDate = {};
-  entries.forEach(e => {
-    if (!byDate[e.od_date]) byDate[e.od_date] = [];
-    byDate[e.od_date].push(e);
-  });
-
-  const dates = Object.keys(byDate).sort();
-
-  if (dates.length === 1) {
-    const doc    = buildCombinedDocx(byDate[dates[0]], letterDate, meta || {});
-    const buffer = await Packer.toBuffer(doc);
-    const fname  = `OD_Combined_${dates[0]}.docx`;
-    res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.send(buffer);
-  } else {
-    const zip = new JSZip();
-    for (const date of dates) {
-      const doc    = buildCombinedDocx(byDate[date], letterDate, meta || {});
-      const buffer = await Packer.toBuffer(doc);
-      zip.file(`OD_Combined_${date}.docx`, buffer);
-    }
-    const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
-    res.setHeader('Content-Disposition', 'attachment; filename="OD_Combined_Letters.zip"');
-    res.setHeader('Content-Type', 'application/zip');
-    res.send(zipBuf);
-  }
+  const doc    = buildCombinedDocx(entries, letterDate, meta || {});
+  const buffer = await Packer.toBuffer(doc);
+  const fname  = 'OD_Official_Combined_Letter.docx';
+  res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.send(buffer);
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────────────

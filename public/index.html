@@ -2183,6 +2183,12 @@ tbody td {
       <div style="flex:1">
         <div style="font-weight:700;color:var(--text-pure);font-size:14px" id="modal-summary-title">Configuring Letter</div>
         <div class="chips" id="modal-student-chips"></div>
+        <div id="modal-date-breakdown" style="display:none;margin-top:12px;padding:12px 14px;background:rgba(37,99,235,0.08);border:1px solid var(--border-glow);border-radius:var(--radius-sm);font-size:12.5px;color:var(--text-high)">
+          <div style="font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+            <span>📅</span> Multi-Date Letter Structure (Grouped by Date):
+          </div>
+          <div id="modal-date-groups-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
       </div>
     </div>
 
@@ -2502,6 +2508,17 @@ function formatDate(str) {
   } catch(_) {
     return str;
   }
+}
+
+function formatDMY(str) {
+  if (!str) return '';
+  if (typeof str === 'string' && str.includes('/')) return str;
+  const s = String(str).trim();
+  const parts = s.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+  }
+  return s;
 }
 
 // ── Dashboard Metrics & Activity ──────────────────────────────────────────────
@@ -2839,8 +2856,8 @@ async function initiateDownload(type, singleId = null) {
   const uniqueReasons = [...new Set(selectedEntries.map(e => e.reason).filter(Boolean))];
   const combinedReason = uniqueReasons.join('; ');
 
-  const uniqueDates = [...new Set(selectedEntries.map(e => e.od_date).filter(Boolean))];
-  const formattedDates = uniqueDates.map(d => formatDate(d)).join(', ');
+  const uniqueDates = [...new Set(selectedEntries.map(e => e.od_date).filter(Boolean))].sort();
+  const formattedDates = uniqueDates.map(d => formatDMY(d)).join(', ');
 
   document.getElementById('cfg-reason').value = combinedReason || 'Participating in scheduled academic / competition activity';
 
@@ -2851,11 +2868,37 @@ async function initiateDownload(type, singleId = null) {
   document.getElementById('cfg-event-dates').value = formattedDates;
   document.getElementById('cfg-od-dates').value = formattedDates;
 
+  // Multi-date preview callout
+  const dateBreakdown = document.getElementById('modal-date-breakdown');
+  const dateGroupsList = document.getElementById('modal-date-groups-list');
+
+  const byDateCount = {};
+  selectedEntries.forEach(e => {
+    const d = e.od_date || 'Undated';
+    byDateCount[d] = (byDateCount[d] || 0) + 1;
+  });
+  const distinctDates = Object.keys(byDateCount).sort();
+
+  if (type === 'combined' && distinctDates.length > 1) {
+    if (dateBreakdown) {
+      dateBreakdown.style.display = 'block';
+      dateGroupsList.innerHTML = distinctDates.map(d => `
+        <span style="background:rgba(56,189,248,0.12);border:1px solid var(--border-subtle);padding:4px 10px;border-radius:var(--radius-full);font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--accent-sky)">
+          Date: ${formatDMY(d)} (${byDateCount[d]} student${byDateCount[d] > 1 ? 's' : ''})
+        </span>
+      `).join('');
+    }
+  } else {
+    if (dateBreakdown) dateBreakdown.style.display = 'none';
+  }
+
   const btn = document.getElementById('btn-generate-doc');
   if (type === 'single') {
     btn.innerHTML = '📄 Generate Official Student Letter (.docx)';
   } else if (type === 'combined') {
-    btn.innerHTML = '📄 Generate Combined Letter with Roster Table (.docx)';
+    btn.innerHTML = distinctDates.length > 1
+      ? `📄 Generate Multi-Date Letter (${distinctDates.length} Dates Grouped, .docx)`
+      : '📄 Generate Combined Letter with Roster Table (.docx)';
   } else {
     btn.innerHTML = `📦 Generate ${selectedEntries.length} Letters (.zip)`;
   }
