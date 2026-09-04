@@ -83,6 +83,35 @@ app.post('/api/entries', (req, res) => {
   res.json({ id: entry.id, success: true });
 });
 
+app.post('/api/entries/bulk', (req, res) => {
+  const entriesList = Array.isArray(req.body) ? req.body : req.body.entries;
+  if (!Array.isArray(entriesList) || entriesList.length === 0) {
+    return res.status(400).json({ error: 'Invalid or empty entries array' });
+  }
+
+  const created = [];
+  for (const item of entriesList) {
+    const { student_name, vtu_id, department, od_date, reason, status, notes } = item;
+    if (!student_name || !vtu_id || !department || !od_date) continue;
+    const entry = {
+      id: nextId++,
+      student_name,
+      vtu_id,
+      department,
+      od_date,
+      reason: reason || 'On Duty Academic Activity',
+      status: status || 'Pending',
+      notes: notes || '',
+      created_at: now(),
+      updated_at: now()
+    };
+    odEntries.push(entry);
+    created.push(entry);
+  }
+
+  res.json({ success: true, count: created.length, entries: created });
+});
+
 app.put('/api/entries/:id', (req, res) => {
   const id  = parseInt(req.params.id);
   const idx = odEntries.findIndex(e => e.id === id);
@@ -174,8 +203,8 @@ function buildCombinedDocx(entries, letterDate, meta = {}) {
     right:  { style: BorderStyle.SINGLE, size: 1, color: '333333' }
   };
 
-  const headers = ['S.No', 'Student Name', 'VTU ID', 'Department', 'Reason / Activity', 'OD Date(s)'];
-  const colWidths = [600, 2400, 1800, 2000, 2600, 1600];
+  const headers = ['S.No', 'Student Name', 'VTU ID', 'Department', 'OD Date(s)'];
+  const colWidths = [800, 3200, 2400, 2600, 1800];
 
   const headerRow = new TableRow({
     tableHeader: true,
@@ -199,8 +228,7 @@ function buildCombinedDocx(entries, letterDate, meta = {}) {
         new TableCell({ width: { size: colWidths[1], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.student_name, { bold: true })], spacing: { before: 60, after: 60 } })] }),
         new TableCell({ width: { size: colWidths[2], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.vtu_id)], spacing: { before: 60, after: 60 } })] }),
         new TableCell({ width: { size: colWidths[3], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.department)], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[4], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(e.reason || commonReason)], spacing: { before: 60, after: 60 } })] }),
-        new TableCell({ width: { size: colWidths[5], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(fmtDate(e.od_date))], spacing: { before: 60, after: 60 } })] })
+        new TableCell({ width: { size: colWidths[4], type: WidthType.DXA }, borders: thinBorder, children: [new Paragraph({ children: [tnr(fmtDate(e.od_date))], spacing: { before: 60, after: 60 } })] })
       ]
     })
   );

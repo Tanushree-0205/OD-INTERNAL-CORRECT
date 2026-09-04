@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* ══════════════════════════════════════════════════════════════════════════════
    DUAL-THEME ARCHITECTURE: BLACKISH-BLUISH & WHITISH-BLUISH TOKENS
@@ -1287,6 +1288,36 @@ tbody td {
   color: var(--primary);
 }
 
+/* ── Excel Dropzone & Bulk Import ── */
+.excel-dropzone {
+  border: 2px dashed var(--border-glow);
+  border-radius: var(--radius-lg);
+  padding: 36px 24px;
+  text-align: center;
+  background: rgba(37, 99, 235, 0.04);
+  cursor: pointer;
+  transition: all 0.28s var(--ease-spring);
+}
+.excel-dropzone:hover, .excel-dropzone.dragover {
+  border-color: var(--accent-sky);
+  background: rgba(56, 189, 248, 0.1);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow);
+}
+.dropzone-icon {
+  font-size: 38px;
+  margin-bottom: 10px;
+}
+.dropzone-text {
+  font-size: 15px;
+  color: var(--text-pure);
+  margin-bottom: 6px;
+}
+.dropzone-hint {
+  font-size: 12.5px;
+  color: var(--text-med);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    ENTERPRISE FOOTER
    ══════════════════════════════════════════════════════════════════════════════ */
@@ -1815,6 +1846,28 @@ tbody td {
           </div>
         </form>
       </div>
+
+      <!-- Bulk Excel/CSV Import Card -->
+      <div class="glass-card" style="margin-top:28px">
+        <div class="card-title-bar">
+          <h3><span class="dot"></span> Bulk Excel / CSV Import for OD Records</h3>
+          <button class="btn btn-ghost btn-sm" onclick="downloadSampleTemplate()">
+            📥 Download Sample Template
+          </button>
+        </div>
+        <p style="font-size:13.5px;color:var(--text-med);margin-bottom:18px">
+          Upload an Excel (.xlsx, .xls) or CSV file containing multiple student entries to import them in bulk into the OD database.
+        </p>
+
+        <div id="dropzone" class="excel-dropzone" onclick="document.getElementById('excel-file-input').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleFileDrop(event)">
+          <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(event)"/>
+          <div class="dropzone-icon">📁</div>
+          <div class="dropzone-text">
+            <strong>Drag & Drop your Excel/CSV file here</strong> or <span style="color:var(--accent-sky);text-decoration:underline">click to browse</span>
+          </div>
+          <div class="dropzone-hint">Required Columns: <code>Student Name</code>, <code>VTU ID</code>, <code>Department</code>, <code>OD Date</code>, <code>Reason</code></div>
+        </div>
+      </div>
     </section>
 
     <!-- ── PAGE 4: OD REGISTER (#page-register) ── -->
@@ -2166,6 +2219,55 @@ tbody td {
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ── BULK UPLOAD PREVIEW MODAL ── -->
+<div class="modal-overlay" id="bulk-upload-modal">
+  <div class="modal large">
+    <div class="modal-header">
+      <div>
+        <h3>📊 Preview Excel Bulk Upload</h3>
+        <p id="bulk-modal-subtitle">Review parsed student entries before importing into the OD database</p>
+      </div>
+      <div class="modal-close" onclick="closeBulkModal()">✕</div>
+    </div>
+
+    <div class="modal-callout" style="background:rgba(56,189,248,0.08);border-color:var(--border-glow)">
+      <div style="font-size:22px">📁</div>
+      <div style="flex:1">
+        <div style="font-weight:700;color:var(--text-pure);font-size:14px" id="bulk-file-name">filename.xlsx</div>
+        <div style="font-size:12.5px;color:var(--text-med)" id="bulk-file-meta">Parsed 0 rows</div>
+      </div>
+    </div>
+
+    <div class="table-container" style="max-height: 340px; overflow-y: auto; margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student Name</th>
+            <th>VTU ID</th>
+            <th>Department</th>
+            <th>OD Date</th>
+            <th>Reason</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="bulk-preview-body">
+          <!-- Rows injected dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="btn-actions" style="border-top:1px solid var(--border-subtle);padding-top:20px">
+      <button type="button" class="btn btn-emerald" id="btn-confirm-bulk" onclick="confirmBulkUpload()">
+        ✅ Import <span id="bulk-valid-count">0</span> Valid Entries
+      </button>
+      <button type="button" class="btn btn-ghost" onclick="closeBulkModal()">
+        Cancel
+      </button>
+    </div>
   </div>
 </div>
 
@@ -2816,6 +2918,208 @@ async function saveSettings() {
     updateSignatoryTopbarChip(hodName);
     toast('Signatory defaults saved successfully!', 'success');
   } catch(err) { toast('Error saving presets: ' + err.message, 'error'); }
+}
+
+// ── Excel Drag & Drop and Bulk Import ──────────────────────────────────────────
+let parsedBulkEntries = [];
+
+function downloadSampleTemplate() {
+  const data = [
+    ["Student Name", "VTU ID", "Department", "OD Date", "Reason"],
+    ["Rahul Sharma", "1VT22CS045", "Computer Science & Engineering", "2025-03-15", "Smart India Hackathon 2025 Grand Finale"],
+    ["Priya Patel", "1VT22EC012", "Electronics & Communication", "2025-03-15", "Smart India Hackathon 2025 Grand Finale"],
+    ["Karthik Raja", "1VT22ME088", "Mechanical Engineering", "2025-03-16", "State Level Robotics Competition"]
+  ];
+  if (window.XLSX) {
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "OD_Entries_Sample");
+    XLSX.writeFile(wb, "OD_Bulk_Upload_Template.xlsx");
+  } else {
+    const csvContent = "data:text/csv;charset=utf-8," + data.map(e => e.map(x => `"${x}"`).join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "OD_Bulk_Upload_Template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  toast('Sample Excel template downloaded!', 'success');
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('dropzone')?.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('dropzone')?.classList.remove('dragover');
+}
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('dropzone')?.classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files && files.length > 0) {
+    processExcelFile(files[0]);
+  }
+}
+
+function handleFileSelect(e) {
+  const files = e.target.files;
+  if (files && files.length > 0) {
+    processExcelFile(files[0]);
+  }
+}
+
+function processExcelFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
+    toast('Please select a valid .xlsx, .xls, or .csv file', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+      if (!jsonData || jsonData.length === 0) {
+        toast('The uploaded file is empty or invalid', 'error');
+        return;
+      }
+
+      parsedBulkEntries = [];
+      jsonData.forEach((row, idx) => {
+        const keys = Object.keys(row);
+        const getVal = (possibleNames) => {
+          const key = keys.find(k => possibleNames.some(p => k.trim().toLowerCase() === p.toLowerCase()));
+          return key ? String(row[key]).trim() : '';
+        };
+
+        const name = getVal(['Student Name', 'Name', 'Student', 'StudentName']);
+        const vtu = getVal(['VTU ID', 'VTU', 'Register No', 'USN', 'VTUID', 'ID']);
+        const dept = getVal(['Department', 'Dept', 'Branch']);
+        let rawDate = getVal(['OD Date', 'Date', 'ODDate']);
+        const reason = getVal(['Reason', 'Activity', 'Event Reason', 'Reason / Activity']);
+
+        let odDate = '';
+        if (rawDate) {
+          if (rawDate instanceof Date) {
+            odDate = rawDate.toISOString().split('T')[0];
+          } else {
+            const parsedDate = new Date(rawDate);
+            if (!isNaN(parsedDate.getTime())) {
+              odDate = parsedDate.toISOString().split('T')[0];
+            } else {
+              odDate = String(rawDate).trim();
+            }
+          }
+        }
+
+        const isValid = name && vtu && dept && odDate;
+        parsedBulkEntries.push({
+          idx: idx + 1,
+          student_name: name,
+          vtu_id: vtu,
+          department: dept,
+          od_date: odDate,
+          reason: reason || 'On Duty Academic Activity',
+          isValid: !!isValid
+        });
+      });
+
+      displayBulkPreviewModal(file.name);
+    } catch (err) {
+      console.error(err);
+      toast('Failed to parse Excel file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function displayBulkPreviewModal(fileName) {
+  const modal = document.getElementById('bulk-upload-modal');
+  document.getElementById('bulk-file-name').textContent = fileName;
+  const validCount = parsedBulkEntries.filter(e => e.isValid).length;
+  document.getElementById('bulk-file-meta').textContent = `Total rows: ${parsedBulkEntries.length} | Valid entries: ${validCount}`;
+  document.getElementById('bulk-valid-count').textContent = validCount;
+
+  const tbody = document.getElementById('bulk-preview-body');
+  tbody.innerHTML = parsedBulkEntries.map(e => `
+    <tr style="${e.isValid ? '' : 'opacity:0.6;background:rgba(244,63,94,0.08)'}">
+      <td>${e.idx}</td>
+      <td><strong>${escapeHtml(e.student_name || '—')}</strong></td>
+      <td><code>${escapeHtml(e.vtu_id || '—')}</code></td>
+      <td>${escapeHtml(e.department || '—')}</td>
+      <td>${escapeHtml(e.od_date || '—')}</td>
+      <td>${escapeHtml(e.reason || '—')}</td>
+      <td>${e.isValid ? '<span class="status-badge status-processed">✅ Valid</span>' : '<span class="status-badge status-pending" style="color:var(--rose);border-color:var(--rose)">⚠️ Missing Data</span>'}</td>
+    </tr>
+  `).join('');
+
+  const btnConfirm = document.getElementById('btn-confirm-bulk');
+  if (validCount === 0) {
+    btnConfirm.disabled = true;
+    btnConfirm.style.opacity = '0.5';
+  } else {
+    btnConfirm.disabled = false;
+    btnConfirm.style.opacity = '1';
+  }
+
+  modal.classList.add('active');
+}
+
+function closeBulkModal() {
+  document.getElementById('bulk-upload-modal')?.classList.remove('active');
+  const input = document.getElementById('excel-file-input');
+  if (input) input.value = '';
+}
+
+async function confirmBulkUpload() {
+  const validEntries = parsedBulkEntries.filter(e => e.isValid).map(e => ({
+    student_name: e.student_name,
+    vtu_id: e.vtu_id,
+    department: e.department,
+    od_date: e.od_date,
+    reason: e.reason,
+    status: 'Pending'
+  }));
+
+  if (!validEntries.length) {
+    toast('No valid entries to upload', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/entries/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: validEntries })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast(`Successfully imported ${data.count} OD entries!`, 'success');
+      closeBulkModal();
+      loadStats();
+      loadRegister();
+      loadDownloadTable();
+      navigate('register');
+    } else {
+      toast(data.error || 'Bulk upload failed', 'error');
+    }
+  } catch (err) {
+    toast('Failed to upload entries: ' + err.message, 'error');
+  }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
