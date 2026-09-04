@@ -448,6 +448,7 @@ h1, h2, h3, h4, .brand-font {
   align-items: center;
   gap: 10px;
   font-size: 14px;
+  white-space: nowrap;
 }
 .breadcrumb-root { color: var(--text-low); font-weight: 500; }
 .breadcrumb-sep { color: var(--border-subtle); font-size: 12px; }
@@ -455,6 +456,10 @@ h1, h2, h3, h4, .brand-font {
   font-weight: 700;
   color: var(--text-pure);
   font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
 }
 
 /* Topbar Center Quick-Pills */
@@ -2417,7 +2422,7 @@ const pageLabels = {
   register:  '📋 OD Audit Register',
   download:  '📥 Official Letter Dispatch',
   settings:  '⚙️ Signatory & Settings',
-  database:  '🗄️ Supabase Cloud Database Explorer'
+  database:  '🗄️ Database Explorer'
 };
 
 function navigate(page) {
