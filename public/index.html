@@ -2090,7 +2090,7 @@ tbody td {
                 <th>OD Date</th>
                 <th>Reason / Activity</th>
                 <th>Status</th>
-                <th>Raw JSON</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="db-table-body">
@@ -2499,6 +2499,16 @@ async function api(method, url, body) {
   return r.json();
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function formatDate(str) {
   if (!str) return '—';
   try {
@@ -2584,6 +2594,8 @@ async function submitOdForm(e) {
     toast('OD record created successfully!', 'success');
     resetForm();
     loadDashboard();
+    loadRegister();
+    loadDatabaseExplorer();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 
@@ -2660,6 +2672,8 @@ async function quickStatus(id, status) {
     await api('PUT', '/api/entries/' + id, { ...entry, status });
     toast(`Status updated to ${status}`, 'success');
     loadDashboard();
+    loadRegister();
+    loadDatabaseExplorer();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 
@@ -2673,7 +2687,7 @@ async function bulkUpdateStatus(status) {
       if (entry) await api('PUT', '/api/entries/' + id, { ...entry, status });
     }
     toast(`${ids.length} records marked as ${status}`, 'success');
-    loadRegister(); loadDashboard();
+    loadRegister(); loadDashboard(); loadDatabaseExplorer();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 
@@ -2682,7 +2696,7 @@ async function deleteEntry(id) {
   try {
     await api('DELETE', '/api/entries/' + id);
     toast('Entry deleted', 'success');
-    loadRegister(); loadDashboard();
+    loadRegister(); loadDashboard(); loadDatabaseExplorer();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 
@@ -2693,7 +2707,7 @@ async function bulkDelete() {
   try {
     for (const id of ids) await api('DELETE', '/api/entries/' + id);
     toast(`${ids.length} records deleted`, 'success');
-    loadRegister(); loadDashboard();
+    loadRegister(); loadDashboard(); loadDatabaseExplorer();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 
@@ -2737,7 +2751,7 @@ async function submitEditForm(e) {
     await api('PUT', '/api/entries/' + id, payload);
     toast('Record updated successfully!', 'success');
     closeModal();
-    loadRegister(); loadDashboard();
+    loadRegister(); loadDashboard(); loadDatabaseExplorer();
   } catch(err) { toast('Error: ' + err.message, 'error'); }
 }
 
@@ -3255,6 +3269,7 @@ async function confirmBulkUpload() {
       loadStats();
       loadRegister();
       loadDownloadTable();
+      loadDatabaseExplorer();
       navigate('register');
     } else {
       toast(data.error || 'Bulk upload failed', 'error');
@@ -3318,16 +3333,22 @@ function renderDatabaseTable(rows) {
   tbody.innerHTML = rows.map(r => `
     <tr>
       <td><code>#${r.id}</code></td>
-      <td><strong>${escapeHtml(r.student_name)}</strong></td>
-      <td><code>${escapeHtml(r.vtu_id)}</code></td>
-      <td>${escapeHtml(r.department)}</td>
-      <td>${escapeHtml(r.od_date)}</td>
-      <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.reason)}">${escapeHtml(r.reason)}</td>
-      <td><span class="status-badge ${r.status === 'Processed' ? 'status-processed' : 'status-pending'}">${r.status === 'Processed' ? '✅ Processed' : '⏳ Pending'}</span></td>
+      <td><strong>${escapeHtml(r.student_name || '—')}</strong></td>
+      <td style="font-family:'JetBrains Mono',monospace;color:var(--primary);font-weight:700">${escapeHtml(r.vtu_id || '—')}</td>
+      <td style="color:var(--text-med)">${escapeHtml(r.department || '—')}</td>
+      <td style="white-space:nowrap">${formatDate(r.od_date)}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-med)" title="${escapeHtml(r.reason || '')}">${escapeHtml(r.reason || '—')}</td>
       <td>
-        <button class="btn btn-ghost btn-sm" onclick='viewRawJson(${JSON.stringify(r).replace(/'/g, "&apos;")})'>
-          🔍 JSON
-        </button>
+        <span class="status-badge ${r.status === 'Processed' ? 'status-processed' : 'status-pending'}">
+          ${r.status === 'Processed' ? '✅ Processed' : '⏳ Pending'}
+        </span>
+      </td>
+      <td>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-ghost btn-sm" title="View Raw JSON" onclick="viewRawJsonById(${r.id})">🔍 JSON</button>
+          <button class="btn btn-ghost btn-sm btn-icon" title="Edit Entry" onclick="openEditModal(${r.id})">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" title="Delete Entry" onclick="deleteEntry(${r.id})">🗑</button>
+        </div>
       </td>
     </tr>
   `).join('');
@@ -3352,6 +3373,11 @@ function viewRawJson(obj) {
   const viewer = document.getElementById('json-viewer-content');
   if (viewer) viewer.textContent = JSON.stringify(obj, null, 2);
   document.getElementById('json-modal')?.classList.add('active');
+}
+
+function viewRawJsonById(id) {
+  const record = dbRecordsCache.find(x => String(x.id) === String(id)) || {};
+  viewRawJson(record);
 }
 
 function closeJsonModal() {
